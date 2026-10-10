@@ -88,9 +88,31 @@ void main() {
     expect(imported.vocabs.single.zhuyin, 'ㄒㄧㄝˋ ˙ㄒㄧㄝ');
   });
 
+  test('CSV export imports all supported vocabulary fields', () {
+    final source = Vocabulary(
+      id: 1,
+      hanzi: '谢谢',
+      traditionalHanzi: '謝謝',
+      pinyin: 'xiè xie',
+      zhuyin: 'ㄒㄧㄝˋ ˙ㄒㄧㄝ',
+      meaning: 'thank you',
+      category: 'HSK 1',
+    );
+    final imported = ExcelService.importCsv(ExcelService.exportCsv([source]));
+    expect(imported.vocabs.single.displayHanzi, '謝謝');
+    expect(imported.vocabs.single.displayPronunciation, 'xiè xie');
+  });
+
+  test('CSV accepts case-insensitive BOM headers', () {
+    final imported = ExcelService.importCsv(
+      '﻿HANZI,MEANING,PINYIN\n你好,hello,nǐ hǎo\n'.codeUnits,
+    );
+    expect(imported.vocabs.single.meaning, 'hello');
+  });
+
   test('Excel template has two valid example rows', () {
     final template = ExcelService.importXlsx(ExcelService.createTemplate());
-    expect(template.vocabs, hasLength(2));
+    expect(template.vocabs, hasLength(3));
     expect(template.skippedCount, 0);
   });
 }

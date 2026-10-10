@@ -1,55 +1,55 @@
-# Mandarin Flashcards
+# TOCFL Mandarin
 
-Offline Flutter app for Traditional Mandarin vocabulary practice with SQLite storage, Zhuyin-ready entries, modular quiz sessions, and Excel/CSV exchange.
+Offline Flutter app for learning Traditional Mandarin aligned with Taiwan's **TOCFL** bands: A1, A2, B1, B2, C1, and C2.
 
-## Features
+## Highlights
 
-- Traditional Hanzi and Zhuyin fields with fallback to `hanzi` and `pinyin`
-- Navigation: select module → select answer mode → start quiz
-- Three modules: pronunciation → Hanzi/meaning, Hanzi → pronunciation/meaning, Hanzi → meaning
-- Multiple-choice and Essay/Flashcard modes
-- Session runs through every available word once; completed words do not repeat
-- Pass sends current word to end of session for review later
-- Leave exits cleanly; completed answer statistics stay saved
-- Optional countdown timer
-- Excel (`.xlsx`) and CSV vocabulary import/export
-- Downloadable Excel template with required headers and example rows
+- Traditional Hanzi, Pinyin, and Zhuyin display
+- Material 3 dashboard with three practice modules and modern gradient cards
+- Flow: choose module → choose Multiple Choice or Essay / Flashcard → practice
+- Non-repeating session deck; **Pass** moves a word to the review-later queue
+- Timer: timeout marks Multiple Choice incorrect; Essay mode reveals the answer card
+- Local SQLite storage and `zh-TW` pronunciation
+- Import/export `.xlsx`, `.csv`, and `.json`; downloadable Excel template
+- Search, TOCFL filters, swipe-to-delete, and tabbed vocabulary management
 
-## Setup
+## First-run TOCFL Deck
 
-```bash
-flutter pub get
-flutter run
-```
+Fresh databases load `assets/data/tocfl_a1_seed.json` during database creation. It contains foundational TOCFL A1 vocabulary in 正體字, Pinyin, 注音符號, and Indonesian meanings. Existing databases are preserved and never reseeded automatically.
 
-Checks:
+## Quiz Modules
 
-```bash
-flutter analyze
-flutter test
-```
+1. **Pronunciation / Zhuyin → Hanzi + Meaning**
+2. **Hanzi → Pronunciation / Zhuyin + Meaning**
+3. **Hanzi → Meaning**
 
-## Quiz Flow
-
-1. Choose one quiz module from Home.
-2. Choose **Multiple Choice** or **Essay / Flashcard**.
-3. Answer every word once. Multiple choice needs four vocabulary rows; Essay mode works with one.
-4. Use **Pass** to defer a word until all other words are complete. Use **Leave** to end current session.
-
-No fixed question limit exists. Completed words leave active session; passed words return only after unpassed words. Review statistics save when answer is evaluated.
+Multiple Choice needs four words. Essay / Flashcard needs one word: reveal answer, then choose **Got It** or **Review Later**. Completed words leave the session. Passed words return after the main deck is exhausted. Leave ends the active session while saved review statistics remain.
 
 ## Vocabulary Files
 
-Manage Vocabulary supports Excel, CSV, and existing JSON imports. Excel and CSV use headers:
+XLSX and CSV use canonical, case-insensitive headers:
 
 ```text
 hanzi,traditionalHanzi,pinyin,zhuyin,meaning,category
 ```
 
-Required: `hanzi`, `pinyin`, `meaning`. Optional fields default safely: blank `traditionalHanzi` displays `hanzi`; blank `zhuyin` displays `pinyin`; blank `category` becomes `Imported`.
+`hanzi`, `pinyin`, and `meaning` are required. Blank Traditional fields fall back to Hanzi. Import merges rows; duplicate detection is not yet implemented.
 
-Use **Export** menu for `mandarin_vocabulary.xlsx` or `.csv`. Use **Download Excel Template** for `mandarin_vocab_template.xlsx` with two example rows.
+## Excel Template
 
-## Database
+The downloadable `.xlsx` template includes the canonical header row and TOCFL A1 example entries.
 
-`mandarin.db`, table `vocabularies`, schema v3. Existing databases migrate by adding nullable `traditionalHanzi` and `zhuyin` columns.
+Required headers:
+
+```text
+hanzi,traditionalHanzi,pinyin,zhuyin,meaning,category
+```
+
+The importer accepts case-insensitive headers and UTF-8 BOM input. Category defaults fall back to `TOCFL A1` when not provided.
+
+```bash
+flutter pub get
+flutter run
+flutter analyze
+flutter test
+```

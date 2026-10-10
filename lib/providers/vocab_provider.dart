@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../models/vocabulary.dart';
-import '../services/csv_import_service.dart';
 import '../services/database_helper.dart';
 import '../services/excel_service.dart';
 
@@ -19,9 +18,51 @@ class VocabProvider extends ChangeNotifier {
   List<Vocabulary> _vocabs = [];
   List<Vocabulary> get vocabs => _vocabs;
 
-  Future<void> loadVocabs() async {
-    _vocabs = await DatabaseHelper.instance.getAllVocabularies();
+  int _currentPage = 0;
+  int get currentPage => _currentPage;
+  static const int pageSize = 50;
+
+  int _totalCount = 0;
+  int get totalCount => _totalCount;
+
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
+
+  Future<void> loadVocabs({
+    String? category,
+    String? searchQuery,
+    int page = 0,
+  }) async {
+    _isLoading = true;
+    _currentPage = page;
+
     notifyListeners();
+
+    try {
+      _vocabs = await DatabaseHelper.instance.getVocabulariesPaged(
+        limit: pageSize,
+        offset: page * pageSize,
+        category: category == 'All' ? null : category,
+        searchQuery: searchQuery?.isEmpty ?? true ? null : searchQuery,
+      );
+      _totalCount = await DatabaseHelper.instance.getVocabulariesCount(
+        category: category == 'All' ? null : category,
+        searchQuery: searchQuery?.isEmpty ?? true ? null : searchQuery,
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadNextPage() async {
+    if (_isLoading || (_currentPage + 1) * pageSize >= _totalCount) return;
+    await loadVocabs(page: _currentPage + 1);
+  }
+
+  Future<void> loadPreviousPage() async {
+    if (_isLoading || _currentPage == 0) return;
+    await loadVocabs(page: _currentPage - 1);
   }
 
   Future<void> addVocab(Vocabulary vocab) async {
@@ -79,9 +120,9 @@ class VocabProvider extends ChangeNotifier {
               ? traditionalHanzi.trim()
               : null,
           meaning: meaning.trim(),
-          category: category is String && category.trim().isNotEmpty
-              ? category.trim()
-              : 'Imported',
+          category: Vocabulary.normalizeCategory(
+            category is String ? category : null,
+          ),
         ),
       );
     }
@@ -94,8 +135,8 @@ class VocabProvider extends ChangeNotifier {
     );
   }
 
-  Future<ImportResult> importFromCsvFile(String path) async {
-    final result = await CsvImportService.parseFile(path);
+  Future<ImportResult> importFromCsvBytes(List<int> bytes) async {
+    final result = ExcelService.importCsv(bytes);
     await DatabaseHelper.instance.insertBatch(result.vocabs);
     await loadVocabs();
     return ImportResult(
@@ -112,5 +153,26 @@ class VocabProvider extends ChangeNotifier {
       importedCount: result.vocabs.length,
       skippedCount: result.skippedCount,
     );
+  }
+
+  Future<List<String>> getDistinctCategories() async {
+    return DatabaseHelper.instance.getDistinctCategories();
+  }
+
+  Future<List<Vocabulary>> getVocabulariesByCategory(String category, {int limit = 100}) async {
+    return DatabaseHelper.instance.getVocabulariesByCategory(category, limit: limit);
+  }
+
+  Future<List<Vocabulary>> getVocabulariesCumulative(String category, {int limit = 10000}) async {
+    return DatabaseHelper.instance.getVocabulariesCumulative(category, limit: limit);
+  }
+
+  Future<int> getVocabulariesCountCumulative(String category) async {
+    return DatabaseHelper.instance.getVocabulariesCountCumulative(category);
+  }
+
+  Future<void> normalizeCategories() async {
+    await DatabaseHelper.instance.normalizeAllCategories();
+    await loadVocabs();
   }
 }

@@ -9,6 +9,8 @@ enum QuizModule {
   pinyinToHanziAndMeaning,
   hanziToPinyinAndMeaning,
   hanziToMeaning,
+  zhuyinByHanzi,
+  hanziByZhuyin,
 }
 
 enum QuizAnswerMode { multipleChoice, essay }
@@ -38,6 +40,13 @@ class QuizProvider extends ChangeNotifier {
   int get score => _score;
   bool _quizFinished = false;
   bool get quizFinished => _quizFinished;
+  int get remainingCount => _remaining.length;
+  int get reviewLaterCount => _reviewLater.length;
+  int get totalCount => _allVocabs.length;
+  double get progressFraction => _allVocabs.isEmpty
+      ? 0.0
+      : _completedCount / _allVocabs.length;
+  bool get hasCurrent => _current != null;
 
   String get questionText {
     final current = _current;
@@ -45,7 +54,9 @@ class QuizProvider extends ChangeNotifier {
     return switch (_module) {
       QuizModule.pinyinToHanziAndMeaning => current.displayPronunciation,
       QuizModule.hanziToPinyinAndMeaning ||
-      QuizModule.hanziToMeaning => current.displayHanzi,
+      QuizModule.hanziToMeaning ||
+      QuizModule.zhuyinByHanzi ||
+      QuizModule.hanziByZhuyin => current.displayHanzi,
     };
   }
 
@@ -58,26 +69,58 @@ class QuizProvider extends ChangeNotifier {
       QuizModule.hanziToPinyinAndMeaning =>
         '${current.displayPronunciation}\n${current.meaning}',
       QuizModule.hanziToMeaning => current.meaning,
+      QuizModule.zhuyinByHanzi =>
+        '${current.zhuyin ?? current.displayPronunciation}\n${current.meaning}',
+      QuizModule.hanziByZhuyin =>
+        '${current.displayHanzi}\n${current.meaning}',
     };
   }
 
   String optionText(Vocabulary vocab) => switch (_module) {
-    QuizModule.pinyinToHanziAndMeaning =>
-      '${vocab.displayHanzi}  —  ${vocab.meaning}',
-    QuizModule.hanziToPinyinAndMeaning =>
-      '${vocab.displayPronunciation}  —  ${vocab.meaning}',
-    QuizModule.hanziToMeaning => vocab.meaning,
-  };
+        QuizModule.pinyinToHanziAndMeaning =>
+          '${vocab.displayHanzi}  —  ${vocab.meaning}',
+        QuizModule.hanziToPinyinAndMeaning =>
+          '${vocab.displayPronunciation}  —  ${vocab.meaning}',
+        QuizModule.hanziToMeaning => vocab.meaning,
+        QuizModule.zhuyinByHanzi =>
+          '${vocab.zhuyin ?? vocab.displayPronunciation}  —  ${vocab.meaning}',
+        QuizModule.hanziByZhuyin =>
+          '${vocab.displayHanzi}  —  ${vocab.meaning}',
+      };
+
+  Future<void> startQuiz({
+    required String category,
+    required QuizModule module,
+    required QuizAnswerMode answerMode,
+    int sessionSize = 20,
+  }) async {
+    final vocabs = await DatabaseHelper.instance.getQuizVocabulary(
+      category: category,
+      limit: sessionSize,
+    );
+    _initQuiz(vocabs, module: module, answerMode: answerMode, sessionSize: sessionSize);
+  }
 
   void startNewQuiz(
     List<Vocabulary> vocabs, {
     required QuizModule module,
     required QuizAnswerMode answerMode,
+    int sessionSize = 20,
+  }) {
+    _initQuiz(vocabs, module: module, answerMode: answerMode, sessionSize: sessionSize);
+  }
+
+  void _initQuiz(
+    List<Vocabulary> vocabs, {
+    required QuizModule module,
+    required QuizAnswerMode answerMode,
+    int sessionSize = 20,
   }) {
     _module = module;
     _answerMode = answerMode;
-    _allVocabs = List<Vocabulary>.from(vocabs);
-    _remaining = List<Vocabulary>.from(vocabs)..shuffle(_rng);
+    final shuffled = List<Vocabulary>.from(vocabs)..shuffle(_rng);
+    _allVocabs = shuffled.take(sessionSize).toList();
+    _remaining = List<Vocabulary>.from(_allVocabs)..shuffle(_rng);
     _reviewLater = [];
     _current = null;
     _options = [];

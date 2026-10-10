@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../controllers/menu_app_controller.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/custom_app_bar.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -10,7 +12,7 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Quiz Settings')),
+      appBar: const CustomAppBar(title: 'Quiz Settings'),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

@@ -1,4 +1,28 @@
 class Vocabulary {
+  static const tocflCategories = [
+    'TOCFL A1',
+    'TOCFL A2',
+    'TOCFL B1',
+    'TOCFL B2',
+    'TOCFL C1',
+    'TOCFL C2',
+  ];
+
+  static const allCategoriesForFilter = [
+    'All',
+    'TOCFL A1',
+    'TOCFL A2',
+    'TOCFL B1',
+    'TOCFL B2',
+    'TOCFL C1',
+    'TOCFL C2',
+  ];
+
+  static String safeDropdownValue(String? value, List<String> validItems) {
+    if (value != null && validItems.contains(value)) return value;
+    return validItems.first;
+  }
+
   final int? id;
   final String hanzi;
   final String pinyin;
@@ -24,7 +48,9 @@ class Vocabulary {
   });
 
   String get displayHanzi => _nonBlank(traditionalHanzi) ?? hanzi;
-  String get displayPronunciation => _nonBlank(zhuyin) ?? pinyin;
+  String get displayPronunciation => pinyin;
+
+  String get displayPronunciationFull => pinyin;
 
   double get accuracy => reviewCount == 0 ? 0.0 : correctCount / reviewCount;
 
@@ -72,11 +98,17 @@ class Vocabulary {
     zhuyin: _nonBlank(map['zhuyin'] as String?),
     traditionalHanzi: _nonBlank(map['traditionalHanzi'] as String?),
     meaning: map['meaning'] as String,
-    category: map['category'] as String,
+    category: normalizeCategory(map['category'] as String?),
     reviewCount: (map['reviewCount'] as int?) ?? 0,
     correctCount: (map['correctCount'] as int?) ?? 0,
     lastReviewed: (map['lastReviewed'] as String?) ?? '',
   );
+
+  static String normalizeCategory(String? value) {
+    final normalized = _nonBlank(value);
+    if (normalized == null) return tocflCategories.first;
+    return tocflCategories.contains(normalized) ? normalized : normalized;
+  }
 
   static String? _nonBlank(String? value) {
     final trimmed = value?.trim();
