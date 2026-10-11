@@ -137,10 +137,18 @@ class _QuizScreenState extends State<QuizScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Leave quiz?'),
-        content: const Text('Answered words are saved. Unanswered session progress will end.'),
+        content: const Text(
+          'Answered words are saved. Unanswered session progress will end.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Stay')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Leave')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Stay'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Leave'),
+          ),
         ],
       ),
     );
@@ -156,7 +164,9 @@ class _QuizScreenState extends State<QuizScreen> {
     final settings = context.watch<SettingsProvider>();
     final bp = Responsive.getBreakpoint(context);
     final isMobile = bp == AppBreakpoint.mobile;
-    final needsFourWords = widget.answerMode == QuizAnswerMode.multipleChoice && quiz.totalCount < 4;
+    final needsFourWords =
+        widget.answerMode == QuizAnswerMode.multipleChoice &&
+        quiz.totalCount < 4;
 
     return PopScope(
       canPop: false,
@@ -164,19 +174,43 @@ class _QuizScreenState extends State<QuizScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(_title(widget.module)),
-          leading: IconButton(icon: const Icon(Icons.close), tooltip: 'Leave quiz', onPressed: _leave),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            tooltip: 'Leave quiz',
+            onPressed: _leave,
+          ),
           actions: [
             if (!isMobile) ...[
-              TextButton.icon(onPressed: quiz.answered ? null : _pass, icon: const Icon(Icons.skip_next), label: const Text('Pass')),
+              TextButton.icon(
+                onPressed: quiz.answered ? null : _pass,
+                icon: const Icon(Icons.skip_next),
+                label: const Text('Pass'),
+              ),
               const SizedBox(width: 8),
-              TextButton.icon(onPressed: _leave, icon: const Icon(Icons.logout), label: const Text('Leave')),
+              TextButton.icon(
+                onPressed: _leave,
+                icon: const Icon(Icons.logout),
+                label: const Text('Leave'),
+              ),
               const SizedBox(width: 12),
             ] else ...[
               PopupMenuButton<String>(
                 onSelected: (value) => value == 'pass' ? _pass() : _leave(),
                 itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'pass', child: ListTile(leading: Icon(Icons.skip_next), title: Text('Pass'))),
-                  PopupMenuItem(value: 'leave', child: ListTile(leading: Icon(Icons.logout), title: Text('Leave'))),
+                  PopupMenuItem(
+                    value: 'pass',
+                    child: ListTile(
+                      leading: Icon(Icons.skip_next),
+                      title: Text('Pass'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'leave',
+                    child: ListTile(
+                      leading: Icon(Icons.logout),
+                      title: Text('Leave'),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(width: 12),
@@ -190,31 +224,40 @@ class _QuizScreenState extends State<QuizScreen> {
             final content = !_loaded
                 ? const Center(child: CircularProgressIndicator())
                 : needsFourWords
-                    ? _buildEmptyState('Multiple choice needs at least 4 vocabulary words.')
-                    : !quiz.hasCurrent
-                        ? _buildEmptyState('Add vocabulary before starting a quiz.')
-                        : quiz.quizFinished
-                            ? _FinishedCard(quiz: quiz, onRestart: () => Navigator.pop(context))
-                            : _QuestionView(
-                                quiz: quiz,
-                                settings: settings,
-                                remainingSeconds: _remainingSeconds,
-                                module: widget.module,
-                                answerMode: widget.answerMode,
-                                feedbackTick: _feedbackTick,
-                                lastAnswerCorrect: _lastAnswerCorrect,
-                                onSpeak: () => TtsService.instance.speak(quiz.current!.displayHanzi),
-                                onSubmit: _submitAnswer,
-                                onNext: _next,
-                                onPass: _pass,
-                                onEvaluate: _evaluateAnswer,
-                                onReveal: () => context.read<QuizProvider>().revealAnswer(),
-                              );
+                ? _buildEmptyState(
+                    'Multiple choice needs at least 4 vocabulary words.',
+                  )
+                : !quiz.hasCurrent
+                ? _buildEmptyState('Add vocabulary before starting a quiz.')
+                : quiz.quizFinished
+                ? _FinishedCard(
+                    quiz: quiz,
+                    onRestart: () => Navigator.pop(context),
+                  )
+                : _QuestionView(
+                    quiz: quiz,
+                    settings: settings,
+                    remainingSeconds: _remainingSeconds,
+                    module: widget.module,
+                    answerMode: widget.answerMode,
+                    feedbackTick: _feedbackTick,
+                    lastAnswerCorrect: _lastAnswerCorrect,
+                    onSpeak: () =>
+                        TtsService.instance.speak(quiz.current!.displayHanzi),
+                    onSubmit: _submitAnswer,
+                    onNext: _next,
+                    onPass: _pass,
+                    onEvaluate: _evaluateAnswer,
+                    onReveal: () => context.read<QuizProvider>().revealAnswer(),
+                  );
             return Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: maxWidth),
                 child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: isMobile ? 12 : 16),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding,
+                    vertical: isMobile ? 12 : 16,
+                  ),
                   child: content,
                 ),
               ),
@@ -226,23 +269,24 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   Widget _buildEmptyState(String message) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-          ),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodyLarge
+            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
+    ),
+  );
 
   String _title(QuizModule module) => switch (module) {
-        QuizModule.pinyinToHanziAndMeaning => 'Pronunciation \u2192 Hanzi',
-        QuizModule.hanziToPinyinAndMeaning => 'Hanzi \u2192 Pronunciation',
-        QuizModule.hanziToMeaning => 'Hanzi \u2192 Meaning',
-        QuizModule.zhuyinByHanzi => 'Hanzi \u2192 Zhuyin',
-        QuizModule.hanziByZhuyin => 'Zhuyin \u2192 Hanzi',
-      };
+    QuizModule.pinyinToHanziAndMeaning => 'Pronunciation \u2192 Hanzi',
+    QuizModule.hanziToPinyinAndMeaning => 'Hanzi \u2192 Pronunciation',
+    QuizModule.hanziToMeaning => 'Hanzi \u2192 Meaning',
+    QuizModule.zhuyinByHanzi => 'Hanzi \u2192 Zhuyin',
+    QuizModule.hanziByZhuyin => 'Zhuyin \u2192 Hanzi',
+  };
 }
 
 class _FinishedCard extends StatelessWidget {
@@ -252,31 +296,47 @@ class _FinishedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: ResponsiveCard(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.celebration_outlined, size: 56, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(height: 16),
-                  Text('Session complete', style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 12),
-                  Text('Correct ${quiz.score} of ${quiz.completedCount}.', style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text('You reviewed ${quiz.totalCount} words in total.', style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 24),
-                  FilledButton(onPressed: onRestart, child: const Text('Back to modes')),
-                ],
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 560),
+      child: ResponsiveCard(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.celebration_outlined,
+                size: 56,
+                color: Theme.of(context).colorScheme.primary,
               ),
-            ),
+              const SizedBox(height: 16),
+              Text(
+                'Session complete',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Correct ${quiz.score} of ${quiz.completedCount}.',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You reviewed ${quiz.totalCount} words in total.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: onRestart,
+                child: const Text('Back to modes'),
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _QuestionView extends StatelessWidget {
@@ -318,18 +378,26 @@ class _QuestionView extends StatelessWidget {
 
     final questionMode = switch (module) {
       QuizModule.pinyinToHanziAndMeaning => 'Listen and recall the word',
-      QuizModule.hanziToPinyinAndMeaning => 'Read the Hanzi and recall pronunciation',
+      QuizModule.hanziToPinyinAndMeaning =>
+        'Read the Hanzi and recall pronunciation',
       QuizModule.hanziToMeaning => 'Read the Hanzi and recall the meaning',
       QuizModule.zhuyinByHanzi => 'Read the Hanzi and recall Zhuyin',
       QuizModule.hanziByZhuyin => 'Read the Zhuyin and recall Hanzi',
     };
-    final showDetails = quiz.revealed || (quiz.answered && answerMode == QuizAnswerMode.multipleChoice);
+    final showDetails =
+        quiz.revealed ||
+        (quiz.answered && answerMode == QuizAnswerMode.multipleChoice);
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ProgressStrip(quiz: quiz, settings: settings, remainingSeconds: remainingSeconds, isMobile: isMobile),
+          _ProgressStrip(
+            quiz: quiz,
+            settings: settings,
+            remainingSeconds: remainingSeconds,
+            isMobile: isMobile,
+          ),
           const SizedBox(height: 16),
           _PromptCard(
             current: current,
@@ -339,8 +407,13 @@ class _QuestionView extends StatelessWidget {
             onSpeak: onSpeak,
             questionMode: questionMode,
             showDetails: showDetails,
-            showAnswerAction: answerMode == QuizAnswerMode.essay && !quiz.revealed
-                ? FilledButton.icon(onPressed: onReveal, icon: const Icon(Icons.visibility_outlined), label: const Text('Show answer'))
+            showAnswerAction:
+                answerMode == QuizAnswerMode.essay && !quiz.revealed
+                ? FilledButton.icon(
+                    onPressed: onReveal,
+                    icon: const Icon(Icons.visibility_outlined),
+                    label: const Text('Show answer'),
+                  )
                 : null,
           ),
           const SizedBox(height: 24),
@@ -359,16 +432,33 @@ class _QuestionView extends StatelessWidget {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Expanded(child: OutlinedButton(onPressed: quiz.answered ? null : () => onEvaluate(false), child: const Text('Review Later'))),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: quiz.answered ? null : () => onEvaluate(false),
+                      child: const Text('Review Later'),
+                    ),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: FilledButton(onPressed: quiz.answered ? null : () => onEvaluate(true), child: const Text('Got It'))),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: quiz.answered ? null : () => onEvaluate(true),
+                      child: const Text('Got It'),
+                    ),
+                  ),
                 ],
               ),
             ],
           ],
           const SizedBox(height: 16),
           if (quiz.answered && answerMode == QuizAnswerMode.multipleChoice)
-            Align(alignment: Alignment.center, child: FilledButton.icon(onPressed: onNext, icon: const Icon(Icons.arrow_forward), label: const Text('Next word'))),
+            Align(
+              alignment: Alignment.center,
+              child: FilledButton.icon(
+                onPressed: onNext,
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('Next word'),
+              ),
+            ),
         ],
       ),
     );
@@ -376,7 +466,12 @@ class _QuestionView extends StatelessWidget {
 }
 
 class _ProgressStrip extends StatelessWidget {
-  const _ProgressStrip({required this.quiz, required this.settings, this.remainingSeconds, required this.isMobile});
+  const _ProgressStrip({
+    required this.quiz,
+    required this.settings,
+    this.remainingSeconds,
+    required this.isMobile,
+  });
   final QuizProvider quiz;
   final SettingsProvider settings;
   final int? remainingSeconds;
@@ -397,21 +492,41 @@ class _ProgressStrip extends StatelessWidget {
           children: [
             Row(
               children: [
-                Text('Session progress', style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  'Session progress',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
                 const Spacer(),
-                Text('${quiz.completedCount}/${quiz.totalCount}', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: colors.primary)),
+                Text(
+                  '${quiz.completedCount}/${quiz.totalCount}',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(color: colors.primary),
+                ),
               ],
             ),
             const SizedBox(height: 10),
-            LinearProgressIndicator(value: progress, minHeight: 6, borderRadius: BorderRadius.circular(3)),
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              borderRadius: BorderRadius.circular(3),
+            ),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                _SessionPill(label: 'Main deck', value: '${quiz.remainingCount}'),
-                _SessionPill(label: 'Review later', value: '${quiz.reviewLaterCount}'),
-                _SessionPill(label: 'Answered', value: '${quiz.completedCount}'),
+                _SessionPill(
+                  label: 'Main deck',
+                  value: '${quiz.remainingCount}',
+                ),
+                _SessionPill(
+                  label: 'Review later',
+                  value: '${quiz.reviewLaterCount}',
+                ),
+                _SessionPill(
+                  label: 'Answered',
+                  value: '${quiz.completedCount}',
+                ),
                 if (settings.isTimerEnabled && remainingSeconds != null)
                   _SessionPill(label: 'Timer', value: '${remainingSeconds}s'),
               ],
@@ -435,9 +550,18 @@ class _SessionPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.primaryContainer,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.45)),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.45),
+        ),
       ),
-      child: Text('$label \u2022 $value', style: TextStyle(color: colors.onPrimaryContainer, fontWeight: FontWeight.w600, fontSize: 12)),
+      child: Text(
+        '$label \u2022 $value',
+        style: TextStyle(
+          color: colors.onPrimaryContainer,
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
+        ),
+      ),
     );
   }
 }
@@ -468,12 +592,22 @@ class _PromptCard extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final maxWidth = MediaQuery.sizeOf(context).width;
     final isHanziLed = module != QuizModule.pinyinToHanziAndMeaning;
-    final promptText = isHanziLed ? current.displayHanzi : current.displayPronunciation;
+    final promptText = isHanziLed
+        ? current.displayHanzi
+        : current.displayPronunciation;
     final compact = maxWidth < 560;
     final wide = maxWidth >= 900;
     final textSize = isHanziLed
-        ? compact ? 50.0 : wide ? 76.0 : 64.0
-        : compact ? 30.0 : wide ? 44.0 : 36.0;
+        ? compact
+              ? 50.0
+              : wide
+              ? 76.0
+              : 64.0
+        : compact
+        ? 30.0
+        : wide
+        ? 44.0
+        : 36.0;
 
     return ResponsiveCard(
       elevation: 2,
@@ -487,22 +621,42 @@ class _PromptCard extends StatelessWidget {
             color: lastAnswerCorrect == null
                 ? colors.outlineVariant.withValues(alpha: 0.6)
                 : lastAnswerCorrect == true
-                    ? Colors.green.withValues(alpha: 0.7)
-                    : Colors.red.withValues(alpha: 0.65),
+                ? Colors.green.withValues(alpha: 0.7)
+                : Colors.red.withValues(alpha: 0.65),
             width: 1.2,
           ),
           boxShadow: lastAnswerCorrect == null
               ? null
-              : [BoxShadow(color: (lastAnswerCorrect == true ? Colors.green : Colors.red).withValues(alpha: 0.12), blurRadius: 24, spreadRadius: 2)],
+              : [
+                  BoxShadow(
+                    color:
+                        (lastAnswerCorrect == true ? Colors.green : Colors.red)
+                            .withValues(alpha: 0.12),
+                    blurRadius: 24,
+                    spreadRadius: 2,
+                  ),
+                ],
         ),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              Row(children: [
-                Expanded(child: Text(questionMode, style: Theme.of(context).textTheme.titleMedium?.copyWith(color: colors.onSurfaceVariant))),
-                IconButton.filledTonal(onPressed: onSpeak, icon: const Icon(Icons.volume_up_outlined), tooltip: 'Pronounce'),
-              ]),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      questionMode,
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(color: colors.onSurfaceVariant),
+                    ),
+                  ),
+                  IconButton.filledTonal(
+                    onPressed: onSpeak,
+                    icon: const Icon(Icons.volume_up_outlined),
+                    tooltip: 'Pronounce',
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 260),
@@ -510,16 +664,25 @@ class _PromptCard extends StatelessWidget {
                   promptText,
                   key: ValueKey('$promptText-$feedbackTick'),
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(fontSize: textSize, height: 1.08),
+                  style: Theme.of(context).textTheme.displayMedium
+                      ?.copyWith(fontSize: textSize, height: 1.08),
                 ),
               ),
               if (showDetails) ...[
                 const SizedBox(height: 16),
-                Wrap(alignment: WrapAlignment.center, spacing: 8, runSpacing: 8, children: [
-                  _InfoBadge(label: 'Hanzi', value: current.displayHanzi),
-                  _InfoBadge(label: 'Pronunciation', value: current.displayPronunciation),
-                  _InfoBadge(label: 'Meaning', value: current.meaning),
-                ]),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _InfoBadge(label: 'Hanzi', value: current.displayHanzi),
+                    _InfoBadge(
+                      label: 'Pronunciation',
+                      value: current.displayPronunciation,
+                    ),
+                    _InfoBadge(label: 'Meaning', value: current.meaning),
+                  ],
+                ),
               ] else if (showAnswerAction != null) ...[
                 const SizedBox(height: 18),
                 Align(alignment: Alignment.center, child: showAnswerAction),
@@ -544,14 +707,26 @@ class _InfoBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.45)),
+        border: Border.all(
+          color: colors.outlineVariant.withValues(alpha: 0.45),
+        ),
       ),
       child: RichText(
         text: TextSpan(
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.onSurface),
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: colors.onSurface),
           children: [
-            TextSpan(text: '$label: ', style: TextStyle(color: colors.onSurfaceVariant, fontWeight: FontWeight.w600)),
-            TextSpan(text: value, style: const TextStyle(fontWeight: FontWeight.w700)),
+            TextSpan(
+              text: '$label: ',
+              style: TextStyle(
+                color: colors.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ],
         ),
       ),
@@ -566,24 +741,32 @@ class _AnswerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedSwitcher(
-        duration: const Duration(milliseconds: 260),
-        child: ResponsiveCard(
-          key: ValueKey('answer-$feedbackTick'),
-          color: Theme.of(context).colorScheme.secondaryContainer,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Answer revealed', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                Text(quiz.answerText, textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontSize: 28, height: 1.35)),
-              ],
+    duration: const Duration(milliseconds: 260),
+    child: ResponsiveCard(
+      key: ValueKey('answer-$feedbackTick'),
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Answer revealed',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-          ),
+            const SizedBox(height: 12),
+            Text(
+              quiz.answerText,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineMedium
+                  ?.copyWith(fontSize: 28, height: 1.35),
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 class _MultipleChoiceOptions extends StatelessWidget {
@@ -605,79 +788,121 @@ class _MultipleChoiceOptions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-        children: List.generate(options.length, (index) {
-          final vocab = options[index];
-          final isCorrect = index == correctIndex;
-          final isSelected = index == selectedIndex;
-          final colors = Theme.of(context).colorScheme;
-          final background = !answered
-              ? colors.surfaceContainerLowest
-              : isCorrect
-                  ? Colors.green.withValues(alpha: 0.14)
-                  : isSelected
-                      ? Colors.red.withValues(alpha: 0.12)
-                      : colors.surfaceContainerLowest;
-          final border = !answered
-              ? colors.outlineVariant.withValues(alpha: 0.7)
-              : isCorrect
-                  ? Colors.green.withValues(alpha: 0.85)
-                  : isSelected
-                      ? Colors.red.withValues(alpha: 0.75)
-                      : colors.outlineVariant.withValues(alpha: 0.7);
+    children: List.generate(options.length, (index) {
+      final vocab = options[index];
+      final isCorrect = index == correctIndex;
+      final isSelected = index == selectedIndex;
+      final colors = Theme.of(context).colorScheme;
+      final background = !answered
+          ? colors.surfaceContainerLowest
+          : isCorrect
+          ? Colors.green.withValues(alpha: 0.14)
+          : isSelected
+          ? Colors.red.withValues(alpha: 0.12)
+          : colors.surfaceContainerLowest;
+      final border = !answered
+          ? colors.outlineVariant.withValues(alpha: 0.7)
+          : isCorrect
+          ? Colors.green.withValues(alpha: 0.85)
+          : isSelected
+          ? Colors.red.withValues(alpha: 0.75)
+          : colors.outlineVariant.withValues(alpha: 0.7);
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: answered && isSelected && !isCorrect ? 1 : 0),
-              duration: const Duration(milliseconds: 320),
-              curve: Curves.easeOut,
-              builder: (context, value, child) {
-                final shake = answered && isSelected && !isCorrect ? math.sin(value * math.pi * 8) * 8 : 0.0;
-                return Transform.translate(offset: Offset(shake, 0), child: child);
-              },
-              child: Material(
-                color: background,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(
+            begin: 0,
+            end: answered && isSelected && !isCorrect ? 1 : 0,
+          ),
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOut,
+          builder: (context, value, child) {
+            final shake = answered && isSelected && !isCorrect
+                ? math.sin(value * math.pi * 8) * 8
+                : 0.0;
+            return Transform.translate(offset: Offset(shake, 0), child: child);
+          },
+          child: Material(
+            color: background,
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              mouseCursor: answered
+                  ? SystemMouseCursors.basic
+                  : SystemMouseCursors.click,
+              onTap: answered ? null : () => onTap(index),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  mouseCursor: answered ? SystemMouseCursors.basic : SystemMouseCursors.click,
-                  onTap: answered ? null : () => onTap(index),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: border, width: 1.2),
-                      boxShadow: answered && isCorrect ? [BoxShadow(color: Colors.green.withValues(alpha: 0.12), blurRadius: 16, spreadRadius: 1)] : null,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: colors.primary.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-                          child: Text(
-                            String.fromCharCode(65 + index),
-                            style: TextStyle(color: colors.primary, fontWeight: FontWeight.w800, fontSize: 14),
+                  border: Border.all(color: border, width: 1.2),
+                  boxShadow: answered && isCorrect
+                      ? [
+                          BoxShadow(
+                            color: Colors.green.withValues(alpha: 0.12),
+                            blurRadius: 16,
+                            spreadRadius: 1,
                           ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: colors.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        String.fromCharCode(65 + index),
+                        style: TextStyle(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(optionText(vocab), style: Theme.of(context).textTheme.titleMedium?.copyWith(height: 1.35, fontWeight: FontWeight.w600))),
-                        if (answered)
-                          Icon(
-                            isCorrect ? Icons.check_circle_outline : isSelected ? Icons.cancel_outlined : Icons.circle_outlined,
-                            color: isCorrect ? Colors.green : isSelected ? Colors.red : colors.onSurfaceVariant,
-                            size: 22,
-                          ),
-                      ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        optionText(vocab),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(
+                              height: 1.35,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                    if (answered)
+                      Icon(
+                        isCorrect
+                            ? Icons.check_circle_outline
+                            : isSelected
+                            ? Icons.cancel_outlined
+                            : Icons.circle_outlined,
+                        color: isCorrect
+                            ? Colors.green
+                            : isSelected
+                            ? Colors.red
+                            : colors.onSurfaceVariant,
+                        size: 22,
+                      ),
+                  ],
                 ),
               ),
             ),
-          );
-        }),
+          ),
+        ),
       );
+    }),
+  );
 }

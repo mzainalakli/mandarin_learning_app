@@ -6,7 +6,6 @@ import '../../core/responsive.dart';
 import '../../models/vocabulary.dart';
 import '../../providers/quiz_provider.dart';
 import '../../providers/vocab_provider.dart';
-import '../../screens/quiz/bopomofo_training_screen.dart';
 import '../../screens/quiz/quiz_mode_selection_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -175,8 +174,13 @@ class _HeroCard extends StatelessWidget {
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: const Color(0xFF8E1D39),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                   OutlinedButton.icon(
@@ -185,9 +189,16 @@ class _HeroCard extends StatelessWidget {
                     onPressed: onManageWords,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.5)),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.5),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                   _HeroActionChip(
@@ -217,35 +228,35 @@ class _HeroCopy extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Traditional Mandarin, built for TOCFL.',
+        style: Theme.of(context).textTheme.displaySmall
+            ?.copyWith(color: Colors.white, height: 1.06),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        'Practice with 正體字, Pinyin, Zhuyin, and a curated TOCFL vocabulary deck ready for desktop and mobile.',
+        style: Theme.of(context).textTheme.bodyLarge
+            ?.copyWith(color: Colors.white.withValues(alpha: 0.9), height: 1.5),
+      ),
+      const SizedBox(height: 18),
+      Wrap(
+        spacing: 10,
+        runSpacing: 10,
         children: [
-          Text(
-            'Traditional Mandarin, built for TOCFL.',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                  color: Colors.white,
-                  height: 1.06,
-                ),
+          _HeroMetric(label: 'Words', value: '$wordCount'),
+          _HeroMetric(
+            label: 'TOCFL A1',
+            value:
+                '${context.read<VocabProvider>().getVocabulariesCountCumulative("TOCFL A1")}',
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Practice with 正體字, Pinyin, Zhuyin, and a curated TOCFL vocabulary deck ready for desktop and mobile.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  height: 1.5,
-                ),
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              _HeroMetric(label: 'Words', value: '$wordCount'),
-              _HeroMetric(label: 'TOCFL A1', value: '${context.read<VocabProvider>().getVocabulariesCountCumulative("TOCFL A1")}'),
-              _HeroMetric(label: 'Deck ready', value: 'Yes'),
-            ],
-          ),
+          _HeroMetric(label: 'Deck ready', value: 'Yes'),
         ],
-      );
+      ),
+    ],
+  );
 }
 
 class _HeroStats extends StatelessWidget {
@@ -275,7 +286,9 @@ class _HeroStats extends StatelessWidget {
           const SizedBox(height: 10),
           _MetricCard(
             label: 'Review accuracy',
-            value: totalReviews == 0 ? '—' : '${(accuracy * 100).toStringAsFixed(0)}%',
+            value: totalReviews == 0
+                ? '—'
+                : '${(accuracy * 100).toStringAsFixed(0)}%',
           ),
         ],
       ),
@@ -290,32 +303,29 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelLarge
+              ?.copyWith(color: Colors.white.withValues(alpha: 0.8)),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
-            ),
-          ],
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.headlineMedium
+              ?.copyWith(color: Colors.white, fontWeight: FontWeight.w800),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class _HeroMetric extends StatelessWidget {
@@ -324,38 +334,54 @@ class _HeroMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-            const SizedBox(height: 2),
-            Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-          ],
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 }
 
 class _HeroActionChip extends StatelessWidget {
-  const _HeroActionChip({required this.icon, required this.label, required this.onTap});
+  const _HeroActionChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => ActionChip(
-        avatar: Icon(icon, color: Colors.white, size: 18),
-        label: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: Colors.white.withValues(alpha: 0.12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
-        onPressed: onTap,
-      );
+    avatar: Icon(icon, color: Colors.white, size: 18),
+    label: Text(
+      label,
+      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+    ),
+    backgroundColor: Colors.white.withValues(alpha: 0.12),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+    side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
+    onPressed: onTap,
+  );
 }
 
 class _TOCFLProgressGrid extends StatelessWidget {
@@ -375,14 +401,19 @@ class _TOCFLProgressGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bp = Responsive.getBreakpoint(context);
-    final crossAxisCount = bp == AppBreakpoint.mobile ? 2 : bp == AppBreakpoint.tablet ? 3 : 6;
+    final crossAxisCount = bp == AppBreakpoint.mobile
+        ? 2
+        : bp == AppBreakpoint.tablet
+        ? 3
+        : 6;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'TOCFL Progress',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 16),
         GridView.builder(
@@ -398,7 +429,12 @@ class _TOCFLProgressGrid extends StatelessWidget {
           itemBuilder: (context, index) {
             final category = Vocabulary.tocflCategories[index];
             final count = tocflCounts[category] ?? 0;
-            final colors = _tocflColors[category] ?? [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.tertiary];
+            final colors =
+                _tocflColors[category] ??
+                [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.tertiary,
+                ];
             return _TOCFLBandCard(
               category: category,
               wordCount: count,
@@ -432,7 +468,11 @@ class _TOCFLBandCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+          gradient: LinearGradient(
+            colors: colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
         ),
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -444,12 +484,15 @@ class _TOCFLBandCard extends StatelessWidget {
                 Text(
                   category,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(999),
@@ -457,9 +500,9 @@ class _TOCFLBandCard extends StatelessWidget {
                   child: Text(
                     '$wordCount words',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -467,9 +510,8 @@ class _TOCFLBandCard extends StatelessWidget {
             const Spacer(),
             Text(
               wordCount == 0 ? 'Not loaded' : '$wordCount vocabulary items',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
             ),
             const SizedBox(height: 12),
             LinearProgressIndicator(
@@ -495,21 +537,22 @@ class _PracticeModuleCards extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-Row(
-            children: [
-              Text(
-                'Practice Modules',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+        Row(
+          children: [
+            Text(
+              'Practice Modules',
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const Spacer(),
+            Text(
+              'Select a module to begin',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              const Spacer(),
-              Text(
-                'Select a module to begin',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
         BentoGrid(
           spacing: 16,
@@ -526,7 +569,9 @@ Row(
                 menuController.selectMenu(1);
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => QuizModeSelectionScreen(initialModule: QuizModule.pinyinToHanziAndMeaning),
+                    builder: (_) => QuizModeSelectionScreen(
+                      initialModule: QuizModule.pinyinToHanziAndMeaning,
+                    ),
                   ),
                 );
               },
@@ -541,7 +586,9 @@ Row(
                 menuController.selectMenu(1);
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => QuizModeSelectionScreen(initialModule: QuizModule.hanziToPinyinAndMeaning),
+                    builder: (_) => QuizModeSelectionScreen(
+                      initialModule: QuizModule.hanziToPinyinAndMeaning,
+                    ),
                   ),
                 );
               },
@@ -556,7 +603,9 @@ Row(
                 menuController.selectMenu(1);
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => QuizModeSelectionScreen(initialModule: QuizModule.hanziToMeaning),
+                    builder: (_) => QuizModeSelectionScreen(
+                      initialModule: QuizModule.hanziToMeaning,
+                    ),
                   ),
                 );
               },
@@ -593,68 +642,71 @@ class _ModuleBentoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ResponsiveCard(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
-          ),
-          padding: const EdgeInsets.all(20),
-          child: Column(
+    elevation: 3,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    onTap: onTap,
+    child: Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(icon, color: Colors.white, size: 24),
-                  ),
-                  const Spacer(),
-                  Text(
-                    index,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.7),
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: Colors.white, size: 24),
               ),
               const Spacer(),
               Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      height: 1.2,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.88),
-                      height: 1.4,
-                    ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Text(
-                    'Start practice',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Colors.white),
-                  ),
-                  const Spacer(),
-                  const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
-                ],
+                index,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
-        ),
-      );
+          const Spacer(),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(color: Colors.white, height: 1.2),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.white.withValues(alpha: 0.88),
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Text(
+                'Start practice',
+                style: Theme.of(context).textTheme.labelLarge
+                    ?.copyWith(color: Colors.white),
+              ),
+              const Spacer(),
+              const Icon(Icons.arrow_forward, color: Colors.white, size: 20),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }

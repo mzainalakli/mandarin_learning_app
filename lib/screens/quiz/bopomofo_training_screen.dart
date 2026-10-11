@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../controllers/menu_app_controller.dart';
 import '../../models/vocabulary.dart';
 import '../../providers/quiz_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -68,15 +67,21 @@ class _BopomofoTrainingScreenState extends State<BopomofoTrainingScreen> {
                             title: 'Guess Zhuyin by Hanzi',
                             subtitle: 'See 正體字, recall ㄅㄆㄇㄈ',
                             icon: Icons.translate_outlined,
-                            selected: _selectedModule == QuizModule.zhuyinByHanzi,
-                            onSelected: () => setState(() => _selectedModule = QuizModule.zhuyinByHanzi),
+                            selected:
+                                _selectedModule == QuizModule.zhuyinByHanzi,
+                            onSelected: () => setState(
+                              () => _selectedModule = QuizModule.zhuyinByHanzi,
+                            ),
                           ),
                           _TrainingModeChip(
                             title: 'Guess Hanzi by Zhuyin',
                             subtitle: 'See ㄅㄆㄇㄈ, recall 正體字',
                             icon: Icons.translate_outlined,
-                            selected: _selectedModule == QuizModule.hanziByZhuyin,
-                            onSelected: () => setState(() => _selectedModule = QuizModule.hanziByZhuyin),
+                            selected:
+                                _selectedModule == QuizModule.hanziByZhuyin,
+                            onSelected: () => setState(
+                              () => _selectedModule = QuizModule.hanziByZhuyin,
+                            ),
                           ),
                         ],
                       ),
@@ -108,20 +113,25 @@ class _BopomofoTrainingScreenState extends State<BopomofoTrainingScreen> {
                           _SessionSizeChip(
                             label: '100',
                             selected: _sessionSize == 100,
-                            onSelected: () => setState(() => _sessionSize = 100),
+                            onSelected: () =>
+                                setState(() => _sessionSize = 100),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        initialValue: Vocabulary.safeDropdownValue(_selectedCategory, categories),
+                        initialValue: Vocabulary.safeDropdownValue(
+                          _selectedCategory,
+                          categories,
+                        ),
                         items: categories
                             .map(
                               (c) => DropdownMenuItem(value: c, child: Text(c)),
                             )
                             .toList(),
                         onChanged: (value) {
-                          if (value != null) setState(() => _selectedCategory = value);
+                          if (value != null)
+                            setState(() => _selectedCategory = value);
                         },
                         decoration: const InputDecoration(
                           labelText: 'TOCFL Level (cumulative)',
@@ -145,7 +155,9 @@ class _BopomofoTrainingScreenState extends State<BopomofoTrainingScreen> {
                           ),
                           ChoiceChip(
                             label: const Text('10 s'),
-                            selected: settings.isTimerEnabled && settings.timerDurationSeconds == 10,
+                            selected:
+                                settings.isTimerEnabled &&
+                                settings.timerDurationSeconds == 10,
                             onSelected: (_) {
                               settings.setTimerEnabled(true);
                               settings.setTimerDurationSeconds(10);
@@ -153,7 +165,9 @@ class _BopomofoTrainingScreenState extends State<BopomofoTrainingScreen> {
                           ),
                           ChoiceChip(
                             label: const Text('20 s'),
-                            selected: settings.isTimerEnabled && settings.timerDurationSeconds == 20,
+                            selected:
+                                settings.isTimerEnabled &&
+                                settings.timerDurationSeconds == 20,
                             onSelected: (_) {
                               settings.setTimerEnabled(true);
                               settings.setTimerDurationSeconds(20);
@@ -161,7 +175,9 @@ class _BopomofoTrainingScreenState extends State<BopomofoTrainingScreen> {
                           ),
                           ChoiceChip(
                             label: const Text('30 s'),
-                            selected: settings.isTimerEnabled && settings.timerDurationSeconds == 30,
+                            selected:
+                                settings.isTimerEnabled &&
+                                settings.timerDurationSeconds == 30,
                             onSelected: (_) {
                               settings.setTimerEnabled(true);
                               settings.setTimerDurationSeconds(30);
@@ -175,8 +191,8 @@ class _BopomofoTrainingScreenState extends State<BopomofoTrainingScreen> {
                             ? 'Timer enabled for ${settings.timerDurationSeconds} seconds in multiple choice mode.'
                             : 'Timer disabled. Multiple choice will wait for your answer.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -185,16 +201,14 @@ class _BopomofoTrainingScreenState extends State<BopomofoTrainingScreen> {
               const SizedBox(height: 18),
               _ModeCard(
                 title: 'Multiple Choice Mode',
-                subtitle:
-                    'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
+                subtitle: 'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
                 icon: Icons.check_circle_outline,
                 color: Theme.of(context).colorScheme.primaryContainer,
                 onTap: () => _openQuiz(context, QuizAnswerMode.multipleChoice),
               ),
               _ModeCard(
                 title: 'Essay / Flashcard Mode',
-                subtitle:
-                    'Think first, reveal the answer card, then self-evaluate with Got It or Review Later.',
+                subtitle: 'Think first, reveal the answer card, then self-evaluate with Got It or Review Later.',
                 icon: Icons.style_outlined,
                 color: Theme.of(context).colorScheme.tertiaryContainer,
                 onTap: () => _openQuiz(context, QuizAnswerMode.essay),
@@ -243,17 +257,31 @@ class _TrainingModeChip extends StatelessWidget {
     return ChoiceChip(
       selected: selected,
       onSelected: (_) => onSelected(),
-      avatar: Icon(icon, color: selected ? colors.onPrimaryContainer : colors.onSurfaceVariant, size: 20),
+      avatar: Icon(
+        icon,
+        color: selected ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+        size: 20,
+      ),
       label: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
-          Text(subtitle, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: colors.onSurfaceVariant)),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.labelLarge
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            subtitle,
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: colors.onSurfaceVariant),
+          ),
         ],
       ),
       selectedColor: colors.primaryContainer,
-      labelStyle: TextStyle(color: selected ? colors.onPrimaryContainer : colors.onSurface),
+      labelStyle: TextStyle(
+        color: selected ? colors.onPrimaryContainer : colors.onSurface,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
@@ -310,7 +338,8 @@ class _ModeCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.55),
+                  color: Theme.of(context).colorScheme.surface
+                      .withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(22),
                 ),
                 child: Icon(icon, size: 36),
@@ -322,9 +351,8 @@ class _ModeCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 6),
                     Text(

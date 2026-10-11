@@ -13,12 +13,42 @@ class SideMenu extends StatefulWidget {
 
 class _SideMenuState extends State<SideMenu> {
   final List<_MenuItem> _menuItems = [
-    _MenuItem(title: 'Dashboard', icon: Icons.dashboard_outlined, selectedIcon: Icons.dashboard, index: 0),
-    _MenuItem(title: 'Practice Quiz', icon: Icons.school_outlined, selectedIcon: Icons.school, index: 1),
-    _MenuItem(title: 'Bopomofo Training', icon: Icons.translate_outlined, selectedIcon: Icons.translate, index: 2),
-    _MenuItem(title: 'Manage Vocabulary', icon: Icons.menu_book_outlined, selectedIcon: Icons.menu_book, index: 3),
-    _MenuItem(title: 'Import / Export', icon: Icons.import_export_outlined, selectedIcon: Icons.import_export, index: 4),
-    _MenuItem(title: 'Settings', icon: Icons.settings_outlined, selectedIcon: Icons.settings, index: 5),
+    _MenuItem(
+      title: 'Dashboard',
+      icon: Icons.dashboard_outlined,
+      selectedIcon: Icons.dashboard,
+      index: 0,
+    ),
+    _MenuItem(
+      title: 'Practice Quiz',
+      icon: Icons.school_outlined,
+      selectedIcon: Icons.school,
+      index: 1,
+    ),
+    _MenuItem(
+      title: 'Bopomofo Training',
+      icon: Icons.translate_outlined,
+      selectedIcon: Icons.translate,
+      index: 2,
+    ),
+    _MenuItem(
+      title: 'Manage Vocabulary',
+      icon: Icons.menu_book_outlined,
+      selectedIcon: Icons.menu_book,
+      index: 3,
+    ),
+    _MenuItem(
+      title: 'Import / Export',
+      icon: Icons.import_export_outlined,
+      selectedIcon: Icons.import_export,
+      index: 4,
+    ),
+    _MenuItem(
+      title: 'Settings',
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings,
+      index: 5,
+    ),
   ];
 
   @override
@@ -34,7 +64,10 @@ class _SideMenuState extends State<SideMenu> {
             const SizedBox(height: 8),
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 itemCount: _menuItems.length,
                 itemBuilder: (context, index) {
                   final item = _menuItems[index];
@@ -62,11 +95,18 @@ class _SideMenuState extends State<SideMenu> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [colors.primary.withValues(alpha: 0.15), colors.tertiary.withValues(alpha: 0.15)],
+          colors: [
+            colors.primary.withValues(alpha: 0.15),
+            colors.tertiary.withValues(alpha: 0.15),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border(bottom: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.3))),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.outlineVariant.withValues(alpha: 0.3),
+          ),
+        ),
       ),
       child: Row(
         children: [
@@ -76,7 +116,11 @@ class _SideMenuState extends State<SideMenu> {
               color: colors.primaryContainer,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(Icons.translate, color: colors.onPrimaryContainer, size: 28),
+            child: Icon(
+              Icons.translate,
+              color: colors.onPrimaryContainer,
+              size: 28,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -86,15 +130,14 @@ class _SideMenuState extends State<SideMenu> {
                 Text(
                   'TOCFL Mandarin',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: colors.onSurface,
-                      ),
+                    fontWeight: FontWeight.w800,
+                    color: colors.onSurface,
+                  ),
                 ),
                 Text(
                   'Traditional Chinese Mastery',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: colors.onSurfaceVariant),
                 ),
               ],
             ),
@@ -113,14 +156,17 @@ class _SideMenuState extends State<SideMenu> {
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.info_outline, size: 16, color: colors.onSurfaceVariant),
+              Icon(
+                Icons.info_outline,
+                size: 16,
+                color: colors.onSurfaceVariant,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'v1.0.0 • Offline First',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: colors.onSurfaceVariant),
                 ),
               ),
             ],
@@ -178,7 +224,9 @@ class _MenuTile extends StatelessWidget {
             children: [
               Icon(
                 isSelected ? item.selectedIcon : item.icon,
-                color: isSelected ? colors.onPrimaryContainer : colors.onSurfaceVariant,
+                color: isSelected
+                    ? colors.onPrimaryContainer
+                    : colors.onSurfaceVariant,
                 size: 22,
               ),
               const SizedBox(width: 16),
@@ -186,9 +234,11 @@ class _MenuTile extends StatelessWidget {
                 child: Text(
                   item.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: isSelected ? colors.onPrimaryContainer : colors.onSurface,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      ),
+                    color: isSelected
+                        ? colors.onPrimaryContainer
+                        : colors.onSurface,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  ),
                 ),
               ),
             ],

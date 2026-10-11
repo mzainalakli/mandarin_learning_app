@@ -138,12 +138,11 @@ class ExcelService {
     }
   }
 
-  static List<List<String>> _parseSimpleCsv(String text) =>
-      const LineSplitter()
-          .convert(text)
-          .where((line) => line.trim().isNotEmpty)
-          .map((line) => line.split(',').map((cell) => cell.trim()).toList())
-          .toList();
+  static List<List<String>> _parseSimpleCsv(String text) => const LineSplitter()
+      .convert(text)
+      .where((line) => line.trim().isNotEmpty)
+      .map((line) => line.split(',').map((cell) => cell.trim()).toList())
+      .toList();
 
   static VocabularyImportData parseRows(List<List<String>> rows) {
     if (rows.isEmpty) {
@@ -157,8 +156,11 @@ class ExcelService {
       }
       if (header.isNotEmpty) columnIndexes[header] = index;
     }
-    final hanziIndex =
-        _columnIndex(columnIndexes, const ['hanzi', 'simplified', 'traditional']);
+    final hanziIndex = _columnIndex(columnIndexes, const [
+      'hanzi',
+      'simplified',
+      'traditional',
+    ]);
     final pinyinIndex = _columnIndex(columnIndexes, const ['pinyin']);
     final meaningIndex = _columnIndex(columnIndexes, const ['meaning']);
 
@@ -212,7 +214,10 @@ class ExcelService {
     return VocabularyImportData(vocabs: vocabs, skippedCount: skippedCount);
   }
 
-  static int? _columnIndex(Map<String, int> columnIndexes, List<String> headers) {
+  static int? _columnIndex(
+    Map<String, int> columnIndexes,
+    List<String> headers,
+  ) {
     for (final header in headers) {
       final index = columnIndexes[_normalizeHeader(header)];
       if (index != null) return index;
@@ -250,22 +255,61 @@ class ExcelService {
 
     // HSK mapping
     if (cat.contains('hsk')) {
-      if (cat.contains('1') || cat.contains('2') || cat.contains('3')) return 'TOCFL A1';
+      if (cat.contains('1') || cat.contains('2') || cat.contains('3'))
+        return 'TOCFL A1';
       if (cat.contains('4') || cat.contains('5')) return 'TOCFL A2';
       if (cat.contains('6')) return 'TOCFL B1';
     }
 
     // Common Chinese category names from the CSV
     const tocflA1Categories = {
-      'figures', 'people', 'person', 'family', 'body parts', 'body actions',
-      'hand actions', 'foot actions', 'eye actions', 'mouth actions',
-      'psychological activities', 'personality traits', 'occupations',
-      'numbers', 'quantities', 'money', 'degree', 'time', 'date/weekday',
-      'colors', 'sizes', 'shapes', 'clothing', 'accessories', 'home items',
-      'home activities', 'food', 'drinks', 'eating', 'school', 'leisure',
-      'health', 'transport', 'vehicles', 'nature', 'phenomena', 'seasons',
-      'weather', 'plants', 'animals', 'directions', 'locations', 'countries',
-      'languages', 'common phrases', 'blessings', 'function words',
+      'figures',
+      'people',
+      'person',
+      'family',
+      'body parts',
+      'body actions',
+      'hand actions',
+      'foot actions',
+      'eye actions',
+      'mouth actions',
+      'psychological activities',
+      'personality traits',
+      'occupations',
+      'numbers',
+      'quantities',
+      'money',
+      'degree',
+      'time',
+      'date/weekday',
+      'colors',
+      'sizes',
+      'shapes',
+      'clothing',
+      'accessories',
+      'home items',
+      'home activities',
+      'food',
+      'drinks',
+      'eating',
+      'school',
+      'leisure',
+      'health',
+      'transport',
+      'vehicles',
+      'nature',
+      'phenomena',
+      'seasons',
+      'weather',
+      'plants',
+      'animals',
+      'directions',
+      'locations',
+      'countries',
+      'languages',
+      'common phrases',
+      'blessings',
+      'function words',
     };
 
     if (tocflA1Categories.contains(cat) || tocflA1Categories.contains(sub)) {

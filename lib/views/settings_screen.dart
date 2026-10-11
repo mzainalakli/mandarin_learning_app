@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../controllers/menu_app_controller.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/custom_app_bar.dart';
 

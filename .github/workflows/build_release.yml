@@ -3,49 +3,48 @@ name: Build & Release Cross-Platform App
 on:
   push:
     branches:
-      - production  # Trigger otomatis saat ada push/merge ke branch main
+      - main
 
 jobs:
   build-and-release:
     name: Build All Platforms & Create Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Diperlukan untuk membuat Release & Tags di GitHub
+      contents: write
 
     steps:
-      # 1. Checkout repository
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      # 2. Install Linux Build Dependencies
-      - name: Install Linux Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
-
-      # 3. Setup Java for Android Build
-      - name: Setup Java JDK
+      - name: Setup Java JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
 
-      # 4. Setup Flutter SDK
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           cache: true
 
-      # 5. Get Flutter dependencies
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
       - name: Install Flutter Dependencies
         run: flutter pub get
 
-      # 6. Build Android APK
-      - name: Build Android APK
-        run: flutter build apk --release
+      - name: Clean Previous Builds
+        run: flutter clean
 
-      # 7. Build Linux App
+      - name: Build Android APK
+        run: flutter build apk --release --no-tree-shake-icons
+
       - name: Build Linux Bundle
         run: |
           flutter config --enable-linux-desktop
@@ -54,21 +53,18 @@ jobs:
           zip -r ../../../../../mandarin_app-linux-x64.zip .
           cd -
 
-      # 8. Generate Automated Tag & Version
       - name: Set Release Tag
         id: tag
         run: |
-          TAG_NAME="v1.0.$(date +'%Y%m%d%H%M%S')"
-          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "TAG_NAME=v1.0.$(date +'\%Y\%m\%d\%H\%M\%S')" >> $GITHUB_ENV
 
-      # 9. Create GitHub Release & Upload Binaries
       - name: Create Release and Upload Artifacts
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
           name: "Release ${{ env.TAG_NAME }}"
           body: |
-            Aplikasi Mandarin Learning otomatis di-build dari commit branch main.
+            Aplikasi Mandarin Learning otomatis di-build dari branch main.
             
             **File Instalasi:**
             - `app-release.apk`: Khusus HP Android

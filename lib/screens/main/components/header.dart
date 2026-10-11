@@ -8,11 +8,7 @@ class Header extends StatelessWidget {
   final String title;
   final VoidCallback? onMenuTap;
 
-  const Header({
-    super.key,
-    required this.title,
-    this.onMenuTap,
-  });
+  const Header({super.key, required this.title, this.onMenuTap});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +21,9 @@ class Header extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
-          bottom: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.3)),
+          bottom: BorderSide(
+            color: colors.outlineVariant.withValues(alpha: 0.3),
+          ),
         ),
       ),
       child: Row(
@@ -39,9 +37,8 @@ class Header extends StatelessWidget {
           if (!isDesktop) const SizedBox(width: 8),
           Text(
             title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const Spacer(),
           const Expanded(child: _SearchField()),
@@ -74,13 +71,18 @@ class _SearchField extends StatelessWidget {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.3)),
+          borderSide: BorderSide(
+            color: colors.outlineVariant.withValues(alpha: 0.3),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: colors.primary, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
       ),
       style: Theme.of(context).textTheme.bodyMedium,
     );
@@ -134,19 +136,27 @@ class _ProfileCard extends StatelessWidget {
           CircleAvatar(
             radius: 16,
             backgroundColor: colors.primaryContainer,
-            child: Icon(Icons.person, size: 18, color: colors.onPrimaryContainer),
+            child: Icon(
+              Icons.person,
+              size: 18,
+              color: colors.onPrimaryContainer,
+            ),
           ),
           if (isDesktop) ...[
             const SizedBox(width: 8),
             Text(
               'Learner',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: colors.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.keyboard_arrow_down, size: 18, color: colors.onSurfaceVariant),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: 18,
+              color: colors.onSurfaceVariant,
+            ),
           ],
         ],
       ),

@@ -5,12 +5,12 @@ import '../../../constants.dart';
 
 class StorageInfoCard extends StatelessWidget {
   const StorageInfoCard({
-    Key? key,
+    super.key,
     required this.title,
     required this.svgSrc,
     required this.amountOfFiles,
     required this.numOfFiles,
-  }) : super(key: key);
+  });
 
   final String title, svgSrc, amountOfFiles;
   final int numOfFiles;
@@ -21,7 +21,7 @@ class StorageInfoCard extends StatelessWidget {
       margin: EdgeInsets.only(top: defaultPadding),
       padding: EdgeInsets.all(defaultPadding),
       decoration: BoxDecoration(
-        border: Border.all(width: 2, color: primaryColor.withOpacity(0.15)),
+        border: Border.all(width: 2, color: primaryColor.withValues(alpha: 0.15)),
         borderRadius: const BorderRadius.all(
           Radius.circular(defaultPadding),
         ),

@@ -43,9 +43,8 @@ class QuizProvider extends ChangeNotifier {
   int get remainingCount => _remaining.length;
   int get reviewLaterCount => _reviewLater.length;
   int get totalCount => _allVocabs.length;
-  double get progressFraction => _allVocabs.isEmpty
-      ? 0.0
-      : _completedCount / _allVocabs.length;
+  double get progressFraction =>
+      _allVocabs.isEmpty ? 0.0 : _completedCount / _allVocabs.length;
   bool get hasCurrent => _current != null;
 
   String get questionText {
@@ -77,16 +76,16 @@ class QuizProvider extends ChangeNotifier {
   }
 
   String optionText(Vocabulary vocab) => switch (_module) {
-        QuizModule.pinyinToHanziAndMeaning =>
-          '${vocab.displayHanzi}  —  ${vocab.displayMeaning}',
-        QuizModule.hanziToPinyinAndMeaning =>
-          '${vocab.displayPronunciation}  —  ${vocab.displayMeaning}',
-        QuizModule.hanziToMeaning => vocab.displayMeaning,
-        QuizModule.zhuyinByHanzi =>
-          '${vocab.zhuyin ?? vocab.displayPronunciation}  —  ${vocab.displayMeaning}',
-        QuizModule.hanziByZhuyin =>
-          '${vocab.displayHanzi}  —  ${vocab.displayMeaning}',
-      };
+    QuizModule.pinyinToHanziAndMeaning =>
+      '${vocab.displayHanzi}  —  ${vocab.displayMeaning}',
+    QuizModule.hanziToPinyinAndMeaning =>
+      '${vocab.displayPronunciation}  —  ${vocab.displayMeaning}',
+    QuizModule.hanziToMeaning => vocab.displayMeaning,
+    QuizModule.zhuyinByHanzi =>
+      '${vocab.zhuyin ?? vocab.displayPronunciation}  —  ${vocab.displayMeaning}',
+    QuizModule.hanziByZhuyin =>
+      '${vocab.displayHanzi}  —  ${vocab.displayMeaning}',
+  };
 
   Future<void> startQuiz({
     required String category,
@@ -98,7 +97,12 @@ class QuizProvider extends ChangeNotifier {
       category: category,
       limit: sessionSize,
     );
-    _initQuiz(vocabs, module: module, answerMode: answerMode, sessionSize: sessionSize);
+    _initQuiz(
+      vocabs,
+      module: module,
+      answerMode: answerMode,
+      sessionSize: sessionSize,
+    );
   }
 
   void startNewQuiz(
@@ -107,7 +111,12 @@ class QuizProvider extends ChangeNotifier {
     required QuizAnswerMode answerMode,
     int sessionSize = 20,
   }) {
-    _initQuiz(vocabs, module: module, answerMode: answerMode, sessionSize: sessionSize);
+    _initQuiz(
+      vocabs,
+      module: module,
+      answerMode: answerMode,
+      sessionSize: sessionSize,
+    );
   }
 
   void _initQuiz(

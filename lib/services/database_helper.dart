@@ -1,9 +1,6 @@
-import 'dart:convert';
-
 import 'package:csv/csv.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/vocabulary.dart';
@@ -89,23 +86,17 @@ class DatabaseHelper {
       where: "category LIKE 'HSK 1' OR category LIKE 'HSK 2' OR category LIKE 'HSK 3' OR category = '' OR category IS NULL OR category NOT IN ('TOCFL A1','TOCFL A2','TOCFL B1','TOCFL B2','TOCFL C1','TOCFL C2')",
     );
 
-    batch.update(
-      'vocabularies',
-      {'category': 'TOCFL A2'},
-      where: "category LIKE 'HSK 4'",
-    );
+    batch.update('vocabularies', {
+      'category': 'TOCFL A2',
+    }, where: "category LIKE 'HSK 4'");
 
-    batch.update(
-      'vocabularies',
-      {'category': 'TOCFL B1'},
-      where: "category LIKE 'HSK 5'",
-    );
+    batch.update('vocabularies', {
+      'category': 'TOCFL B1',
+    }, where: "category LIKE 'HSK 5'");
 
-    batch.update(
-      'vocabularies',
-      {'category': 'TOCFL B2'},
-      where: "category LIKE 'HSK 6'",
-    );
+    batch.update('vocabularies', {
+      'category': 'TOCFL B2',
+    }, where: "category LIKE 'HSK 6'");
 
     await batch.commit(noResult: true);
   }
@@ -131,7 +122,11 @@ class DatabaseHelper {
   }
 
   Future<void> _autoSeedIfEmpty(Database db) async {
-    final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM vocabularies')) ?? 0;
+    final count =
+        Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM vocabularies'),
+        ) ??
+        0;
     if (count > 0) return;
 
     final csvData = await rootBundle.loadString(_csvAsset);
@@ -173,7 +168,8 @@ class DatabaseHelper {
       if (hanzi.isEmpty || pinyin.isEmpty) continue;
       final cleanMeaning = meaning.isEmpty ? '-' : meaning;
 
-      final traditionalHanzi = traditionalIdx >= 0 && traditionalIdx < row.length
+      final traditionalHanzi =
+          traditionalIdx >= 0 && traditionalIdx < row.length
           ? row[traditionalIdx].toString().trim()
           : '';
       final zhuyin = zhuyinIdx >= 0 && zhuyinIdx < row.length
@@ -216,14 +212,16 @@ class DatabaseHelper {
         generatedZhuyin = zhuyin;
       }
 
-      vocabs.add(Vocabulary(
-        hanzi: hanzi,
-        traditionalHanzi: traditionalHanzi.isEmpty ? null : traditionalHanzi,
-        pinyin: pinyin,
-        zhuyin: generatedZhuyin.isEmpty ? null : generatedZhuyin,
-        meaning: cleanMeaning,
-        category: category,
-      ));
+      vocabs.add(
+        Vocabulary(
+          hanzi: hanzi,
+          traditionalHanzi: traditionalHanzi.isEmpty ? null : traditionalHanzi,
+          pinyin: pinyin,
+          zhuyin: generatedZhuyin.isEmpty ? null : generatedZhuyin,
+          meaning: cleanMeaning,
+          category: category,
+        ),
+      );
     }
     return vocabs;
   }
@@ -256,10 +254,18 @@ class DatabaseHelper {
         '(hanzi LIKE ? OR traditionalHanzi LIKE ? OR pinyin LIKE ? OR meaning LIKE ? OR zhuyin LIKE ?)',
       );
       final searchTerm = '%$searchQuery%';
-      whereArgs.addAll([searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+      whereArgs.addAll([
+        searchTerm,
+        searchTerm,
+        searchTerm,
+        searchTerm,
+        searchTerm,
+      ]);
     }
 
-    final where = whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
+    final where = whereClauses.isEmpty
+        ? ''
+        : 'WHERE ${whereClauses.join(' AND ')}';
     final maps = await db.rawQuery(
       'SELECT * FROM vocabularies $where ORDER BY category, hanzi LIMIT ? OFFSET ?',
       [...whereArgs, limit, offset],
@@ -267,7 +273,10 @@ class DatabaseHelper {
     return maps.map(Vocabulary.fromMap).toList();
   }
 
-  Future<int> getVocabulariesCount({String? category, String? searchQuery}) async {
+  Future<int> getVocabulariesCount({
+    String? category,
+    String? searchQuery,
+  }) async {
     final db = await database;
     final whereClauses = <String>[];
     final whereArgs = <Object>[];
@@ -281,11 +290,22 @@ class DatabaseHelper {
         '(hanzi LIKE ? OR traditionalHanzi LIKE ? OR pinyin LIKE ? OR meaning LIKE ? OR zhuyin LIKE ?)',
       );
       final searchTerm = '%$searchQuery%';
-      whereArgs.addAll([searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
+      whereArgs.addAll([
+        searchTerm,
+        searchTerm,
+        searchTerm,
+        searchTerm,
+        searchTerm,
+      ]);
     }
 
-    final where = whereClauses.isEmpty ? '' : 'WHERE ${whereClauses.join(' AND ')}';
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM vocabularies $where', whereArgs);
+    final where = whereClauses.isEmpty
+        ? ''
+        : 'WHERE ${whereClauses.join(' AND ')}';
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM vocabularies $where',
+      whereArgs,
+    );
     return result.first['count'] as int;
   }
 
@@ -314,7 +334,10 @@ class DatabaseHelper {
     );
   }
 
-  Future<List<Vocabulary>> getVocabulariesByCategory(String category, {int limit = 50}) async {
+  Future<List<Vocabulary>> getVocabulariesByCategory(
+    String category, {
+    int limit = 50,
+  }) async {
     final maps = await (await database).query(
       'vocabularies',
       where: 'category = ?',

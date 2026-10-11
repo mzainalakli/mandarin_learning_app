@@ -27,38 +27,58 @@ class MainScreen extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (isDesktop)
-              Expanded(
-                flex: 1,
-                child: SideMenu(),
-              ),
-Expanded(
-                flex: 5,
-                child: Column(
-                  children: [
-                    Header(
-                      title: _getScreenTitle(menuController.selectedIndex),
-                      onMenuTap: () => Scaffold.of(context).openDrawer(),
-                    ),
-                    Expanded(
-                      child: KeyedSubtree(
-                        key: ValueKey<int>(menuController.selectedIndex),
-                        child: IndexedStack(
-                          index: menuController.selectedIndex,
-                          children: [
-                            _buildTab(0, menuController.selectedIndex, const DashboardScreen()),
-                            _buildTab(1, menuController.selectedIndex, const QuizModeSelectionScreen()),
-                            _buildTab(2, menuController.selectedIndex, const BopomofoTrainingScreen()),
-                            _buildTab(3, menuController.selectedIndex, const ManageVocabScreen()),
-                            _buildTab(4, menuController.selectedIndex, const BulkOperationsScreen()),
-                            _buildTab(5, menuController.selectedIndex, const SettingsScreen()),
-                          ],
-                        ),
+            if (isDesktop) Expanded(flex: 1, child: SideMenu()),
+            Expanded(
+              flex: 5,
+              child: Column(
+                children: [
+                  Header(
+                    title: _getScreenTitle(menuController.selectedIndex),
+                    onMenuTap: () => Scaffold.of(context).openDrawer(),
+                  ),
+                  Expanded(
+                    child: KeyedSubtree(
+                      key: ValueKey<int>(menuController.selectedIndex),
+                      child: IndexedStack(
+                        index: menuController.selectedIndex,
+                        children: [
+                          _buildTab(
+                            0,
+                            menuController.selectedIndex,
+                            const DashboardScreen(),
+                          ),
+                          _buildTab(
+                            1,
+                            menuController.selectedIndex,
+                            const QuizModeSelectionScreen(),
+                          ),
+                          _buildTab(
+                            2,
+                            menuController.selectedIndex,
+                            const BopomofoTrainingScreen(),
+                          ),
+                          _buildTab(
+                            3,
+                            menuController.selectedIndex,
+                            const ManageVocabScreen(),
+                          ),
+                          _buildTab(
+                            4,
+                            menuController.selectedIndex,
+                            const BulkOperationsScreen(),
+                          ),
+                          _buildTab(
+                            5,
+                            menuController.selectedIndex,
+                            const SettingsScreen(),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -88,10 +108,7 @@ Expanded(
     final bool isActive = tabIndex == currentIndex;
     return TickerMode(
       enabled: isActive,
-      child: ExcludeSemantics(
-        excluding: !isActive,
-        child: child,
-      ),
+      child: ExcludeSemantics(excluding: !isActive, child: child),
     );
   }
 }

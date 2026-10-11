@@ -40,28 +40,30 @@ class MandarinApp extends StatelessWidget {
   Widget build(BuildContext context) {
     const crimson = Color(0xFF9D1F3C);
     const jade = Color(0xFF087B68);
-    final light = ColorScheme.fromSeed(
-      seedColor: crimson,
-      tertiary: jade,
-      brightness: Brightness.light,
-    ).copyWith(
-      primary: crimson,
-      secondary: jade,
-      surface: const Color(0xFFFAF7F4),
-      surfaceContainerHighest: const Color(0xFFF0E8E2),
-      surfaceTint: crimson,
-    );
-    final dark = ColorScheme.fromSeed(
-      seedColor: crimson,
-      tertiary: jade,
-      brightness: Brightness.dark,
-    ).copyWith(
-      primary: const Color(0xFFFF7C8D),
-      secondary: const Color(0xFF58C2AE),
-      surface: const Color(0xFF1B1817),
-      surfaceContainerHighest: const Color(0xFF2A2423),
-      surfaceTint: const Color(0xFFFF7C8D),
-    );
+    final light =
+        ColorScheme.fromSeed(
+          seedColor: crimson,
+          tertiary: jade,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: crimson,
+          secondary: jade,
+          surface: const Color(0xFFFAF7F4),
+          surfaceContainerHighest: const Color(0xFFF0E8E2),
+          surfaceTint: crimson,
+        );
+    final dark =
+        ColorScheme.fromSeed(
+          seedColor: crimson,
+          tertiary: jade,
+          brightness: Brightness.dark,
+        ).copyWith(
+          primary: const Color(0xFFFF7C8D),
+          secondary: const Color(0xFF58C2AE),
+          surface: const Color(0xFF1B1817),
+          surfaceContainerHighest: const Color(0xFF2A2423),
+          surfaceTint: const Color(0xFFFF7C8D),
+        );
     return MaterialApp(
       title: 'TOCFL Mandarin',
       debugShowCheckedModeBanner: false,
@@ -95,7 +97,10 @@ class MandarinApp extends StatelessWidget {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: colors.primaryContainer,
-      labelStyle: TextStyle(color: colors.onPrimaryContainer, fontWeight: FontWeight.w600),
+      labelStyle: TextStyle(
+        color: colors.onPrimaryContainer,
+        fontWeight: FontWeight.w600,
+      ),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
       side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.7)),
     ),
@@ -124,61 +129,68 @@ class MandarinApp extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     ),
-    textTheme: Typography.material2021().black.copyWith(
-      displayLarge: TextStyle(
-        color: colors.onSurface,
-        fontSize: 56,
-        fontWeight: FontWeight.w800,
-        height: 1.05,
-      ),
-      displayMedium: TextStyle(
-        color: colors.onSurface,
-        fontSize: 44,
-        fontWeight: FontWeight.w800,
-        height: 1.06,
-      ),
-      displaySmall: TextStyle(
-        color: colors.onSurface,
-        fontSize: 34,
-        fontWeight: FontWeight.w700,
-        height: 1.08,
-      ),
-      headlineLarge: TextStyle(
-        color: colors.onSurface,
-        fontSize: 30,
-        fontWeight: FontWeight.w700,
-      ),
-      headlineMedium: TextStyle(
-        color: colors.onSurface,
-        fontSize: 24,
-        fontWeight: FontWeight.w700,
-      ),
-      headlineSmall: TextStyle(
-        color: colors.onSurface,
-        fontSize: 21,
-        fontWeight: FontWeight.w700,
-      ),
-      titleLarge: TextStyle(
-        color: colors.onSurface,
-        fontSize: 20,
-        fontWeight: FontWeight.w700,
-      ),
-      titleMedium: TextStyle(
-        color: colors.onSurface,
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-      ),
-      bodyLarge: TextStyle(color: colors.onSurface, fontSize: 16, height: 1.4),
-      bodyMedium: TextStyle(color: colors.onSurface, fontSize: 14, height: 1.4),
-      labelLarge: TextStyle(
-        color: colors.onSurface,
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-      ),
-    ).apply(
-      bodyColor: colors.onSurface,
-      displayColor: colors.onSurface,
-    ),
+    textTheme: Typography.material2021().black
+        .copyWith(
+          displayLarge: TextStyle(
+            color: colors.onSurface,
+            fontSize: 56,
+            fontWeight: FontWeight.w800,
+            height: 1.05,
+          ),
+          displayMedium: TextStyle(
+            color: colors.onSurface,
+            fontSize: 44,
+            fontWeight: FontWeight.w800,
+            height: 1.06,
+          ),
+          displaySmall: TextStyle(
+            color: colors.onSurface,
+            fontSize: 34,
+            fontWeight: FontWeight.w700,
+            height: 1.08,
+          ),
+          headlineLarge: TextStyle(
+            color: colors.onSurface,
+            fontSize: 30,
+            fontWeight: FontWeight.w700,
+          ),
+          headlineMedium: TextStyle(
+            color: colors.onSurface,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+          ),
+          headlineSmall: TextStyle(
+            color: colors.onSurface,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+          ),
+          titleLarge: TextStyle(
+            color: colors.onSurface,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+          ),
+          titleMedium: TextStyle(
+            color: colors.onSurface,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+          ),
+          bodyLarge: TextStyle(
+            color: colors.onSurface,
+            fontSize: 16,
+            height: 1.4,
+          ),
+          bodyMedium: TextStyle(
+            color: colors.onSurface,
+            fontSize: 14,
+            height: 1.4,
+          ),
+          labelLarge: TextStyle(
+            color: colors.onSurface,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        )
+        .apply(bodyColor: colors.onSurface, displayColor: colors.onSurface),
     tabBarTheme: TabBarThemeData(
       labelColor: colors.primary,
       unselectedLabelColor: colors.onSurfaceVariant,
@@ -191,6 +203,8 @@ class MandarinApp extends StatelessWidget {
       tileColor: colors.surfaceContainerLowest,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     ),
-    dividerTheme: DividerThemeData(color: colors.outlineVariant.withValues(alpha: 0.4)),
+    dividerTheme: DividerThemeData(
+      color: colors.outlineVariant.withValues(alpha: 0.4),
+    ),
   );
 }

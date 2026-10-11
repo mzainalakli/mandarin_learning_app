@@ -164,12 +164,24 @@ class VocabProvider extends ChangeNotifier {
     return DatabaseHelper.instance.getDistinctCategories();
   }
 
-  Future<List<Vocabulary>> getVocabulariesByCategory(String category, {int limit = 100}) async {
-    return DatabaseHelper.instance.getVocabulariesByCategory(category, limit: limit);
+  Future<List<Vocabulary>> getVocabulariesByCategory(
+    String category, {
+    int limit = 100,
+  }) async {
+    return DatabaseHelper.instance.getVocabulariesByCategory(
+      category,
+      limit: limit,
+    );
   }
 
-  Future<List<Vocabulary>> getVocabulariesCumulative(String category, {int limit = 10000}) async {
-    return DatabaseHelper.instance.getVocabulariesCumulative(category, limit: limit);
+  Future<List<Vocabulary>> getVocabulariesCumulative(
+    String category, {
+    int limit = 10000,
+  }) async {
+    return DatabaseHelper.instance.getVocabulariesCumulative(
+      category,
+      limit: limit,
+    );
   }
 
   Future<int> getVocabulariesCountCumulative(String category) async {

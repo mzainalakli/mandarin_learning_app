@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum AppBreakpoint {
-  mobile,
-  tablet,
-  desktop,
-}
+enum AppBreakpoint { mobile, tablet, desktop }
 
 class Responsive {
   static const double mobileBreakpoint = 850;
@@ -17,9 +13,12 @@ class Responsive {
     return AppBreakpoint.desktop;
   }
 
-  static bool isMobile(BuildContext context) => getBreakpoint(context) == AppBreakpoint.mobile;
-  static bool isTablet(BuildContext context) => getBreakpoint(context) == AppBreakpoint.tablet;
-  static bool isDesktop(BuildContext context) => getBreakpoint(context) == AppBreakpoint.desktop;
+  static bool isMobile(BuildContext context) =>
+      getBreakpoint(context) == AppBreakpoint.mobile;
+  static bool isTablet(BuildContext context) =>
+      getBreakpoint(context) == AppBreakpoint.tablet;
+  static bool isDesktop(BuildContext context) =>
+      getBreakpoint(context) == AppBreakpoint.desktop;
   static bool isTabletOrDesktop(BuildContext context) => !isMobile(context);
   static bool isMobileOrTablet(BuildContext context) => !isDesktop(context);
 
@@ -51,7 +50,10 @@ class Responsive {
     }
   }
 
-  static int getGridCrossAxisCount(BuildContext context, {double maxCardWidth = 360}) {
+  static int getGridCrossAxisCount(
+    BuildContext context, {
+    double maxCardWidth = 360,
+  }) {
     final bp = getBreakpoint(context);
     final width = MediaQuery.sizeOf(context).width;
     if (bp == AppBreakpoint.mobile) return 1;
@@ -106,12 +108,31 @@ class ResponsiveLayout extends StatelessWidget {
     );
   }
 
-  List<NavigationDestination> _buildDestinations(BuildContext context, Widget sidebar) {
+  List<NavigationDestination> _buildDestinations(
+    BuildContext context,
+    Widget sidebar,
+  ) {
     return const [
-      NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard), label: 'Home'),
-      NavigationDestination(icon: Icon(Icons.school_outlined), selectedIcon: Icon(Icons.school), label: 'Practice'),
-      NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Vocabulary'),
-      NavigationDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings), label: 'Settings'),
+      NavigationDestination(
+        icon: Icon(Icons.dashboard_outlined),
+        selectedIcon: Icon(Icons.dashboard),
+        label: 'Home',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.school_outlined),
+        selectedIcon: Icon(Icons.school),
+        label: 'Practice',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.menu_book_outlined),
+        selectedIcon: Icon(Icons.menu_book),
+        label: 'Vocabulary',
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.settings_outlined),
+        selectedIcon: Icon(Icons.settings),
+        label: 'Settings',
+      ),
     ];
   }
 }
@@ -145,7 +166,10 @@ class ResponsiveSidebar extends StatelessWidget {
       destinations: destinations,
       backgroundColor: colors.surfaceContainerLowest,
       indicatorColor: colors.primaryContainer,
-      selectedLabelTextStyle: TextStyle(color: colors.onPrimaryContainer, fontWeight: FontWeight.w600),
+      selectedLabelTextStyle: TextStyle(
+        color: colors.onPrimaryContainer,
+        fontWeight: FontWeight.w600,
+      ),
       unselectedLabelTextStyle: TextStyle(color: colors.onSurfaceVariant),
     );
   }
@@ -169,7 +193,10 @@ class BentoGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final crossAxisCount = Responsive.getGridCrossAxisCount(context, maxCardWidth: maxCardWidth);
+        final crossAxisCount = Responsive.getGridCrossAxisCount(
+          context,
+          maxCardWidth: maxCardWidth,
+        );
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -210,15 +237,19 @@ class ResponsiveCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bp = Responsive.getBreakpoint(context);
-    final cardPadding = padding ?? switch (bp) {
-      AppBreakpoint.mobile => const EdgeInsets.all(16),
-      AppBreakpoint.tablet => const EdgeInsets.all(20),
-      AppBreakpoint.desktop => const EdgeInsets.all(24),
-    };
+    final cardPadding =
+        padding ??
+        switch (bp) {
+          AppBreakpoint.mobile => const EdgeInsets.all(16),
+          AppBreakpoint.tablet => const EdgeInsets.all(20),
+          AppBreakpoint.desktop => const EdgeInsets.all(24),
+        };
 
     final card = Card(
       elevation: elevation,
-      shape: shape ?? RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape:
+          shape ??
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: color,
       margin: margin,
       child: Padding(padding: cardPadding, child: child),

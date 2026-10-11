@@ -4,8 +4,6 @@ import 'package:provider/provider.dart';
 import '../models/vocabulary.dart';
 import '../providers/quiz_provider.dart';
 import '../providers/settings_provider.dart';
-import '../providers/vocab_provider.dart';
-import '../services/database_helper.dart';
 import 'quiz_screen.dart';
 
 class ModeSelectionScreen extends StatefulWidget {
@@ -85,20 +83,25 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                           _SessionSizeChip(
                             label: '100',
                             selected: _sessionSize == 100,
-                            onSelected: () => setState(() => _sessionSize = 100),
+                            onSelected: () =>
+                                setState(() => _sessionSize = 100),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<String>(
-                        initialValue: Vocabulary.safeDropdownValue(_selectedCategory, categories),
+                        initialValue: Vocabulary.safeDropdownValue(
+                          _selectedCategory,
+                          categories,
+                        ),
                         items: categories
                             .map(
                               (c) => DropdownMenuItem(value: c, child: Text(c)),
                             )
                             .toList(),
                         onChanged: (value) {
-                          if (value != null) setState(() => _selectedCategory = value);
+                          if (value != null)
+                            setState(() => _selectedCategory = value);
                         },
                         decoration: const InputDecoration(
                           labelText: 'TOCFL Category',
@@ -122,7 +125,9 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                           ),
                           ChoiceChip(
                             label: const Text('10 s'),
-                            selected: settings.isTimerEnabled && settings.timerDurationSeconds == 10,
+                            selected:
+                                settings.isTimerEnabled &&
+                                settings.timerDurationSeconds == 10,
                             onSelected: (_) {
                               settings.setTimerEnabled(true);
                               settings.setTimerDurationSeconds(10);
@@ -130,7 +135,9 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                           ),
                           ChoiceChip(
                             label: const Text('20 s'),
-                            selected: settings.isTimerEnabled && settings.timerDurationSeconds == 20,
+                            selected:
+                                settings.isTimerEnabled &&
+                                settings.timerDurationSeconds == 20,
                             onSelected: (_) {
                               settings.setTimerEnabled(true);
                               settings.setTimerDurationSeconds(20);
@@ -138,7 +145,9 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                           ),
                           ChoiceChip(
                             label: const Text('30 s'),
-                            selected: settings.isTimerEnabled && settings.timerDurationSeconds == 30,
+                            selected:
+                                settings.isTimerEnabled &&
+                                settings.timerDurationSeconds == 30,
                             onSelected: (_) {
                               settings.setTimerEnabled(true);
                               settings.setTimerDurationSeconds(30);
@@ -152,8 +161,8 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                             ? 'Timer enabled for ${settings.timerDurationSeconds} seconds in multiple choice mode.'
                             : 'Timer disabled. Multiple choice will wait for your answer.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -162,16 +171,14 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
               const SizedBox(height: 18),
               _ModeCard(
                 title: 'Multiple Choice Mode',
-                subtitle:
-                    'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
+                subtitle: 'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
                 icon: Icons.check_circle_outline,
                 color: Theme.of(context).colorScheme.primaryContainer,
                 onTap: () => _openQuiz(context, QuizAnswerMode.multipleChoice),
               ),
               _ModeCard(
                 title: 'Essay / Flashcard Mode',
-                subtitle:
-                    'Think first, reveal the answer card, then self-evaluate with Got It or Review Later.',
+                subtitle: 'Think first, reveal the answer card, then self-evaluate with Got It or Review Later.',
                 icon: Icons.style_outlined,
                 color: Theme.of(context).colorScheme.tertiaryContainer,
                 onTap: () => _openQuiz(context, QuizAnswerMode.essay),
@@ -250,7 +257,8 @@ class _ModeCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.55),
+                  color: Theme.of(context).colorScheme.surface
+                      .withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(22),
                 ),
                 child: Icon(icon, size: 36),
@@ -262,9 +270,8 @@ class _ModeCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 6),
                     Text(

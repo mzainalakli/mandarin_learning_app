@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
-import '../../controllers/menu_app_controller.dart';
 import '../../providers/vocab_provider.dart';
 import '../../services/excel_service.dart';
 import '../../widgets/custom_app_bar.dart';
@@ -28,62 +27,62 @@ class _BulkOperationsScreenState extends State<BulkOperationsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          LayoutBuilder(builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 820 ? 2 : 1;
-            return GridView.count(
-              crossAxisCount: columns,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 1.25,
-              children: [
-                _ActionCard(
-                  icon: Icons.grid_view_outlined,
-                  title: 'Export to Excel (.xlsx)',
-                  description:
-                      'Download the full vocabulary set with the canonical TOCFL schema and pronunciation fields.',
-                  buttonLabel: 'Export XLSX',
-                  onPressed: _isExporting ? null : () => _export(true),
-                  loading: _isExporting,
-                ),
-                _ActionCard(
-                  icon: Icons.description_outlined,
-                  title: 'Export to CSV',
-                  description:
-                      'Produce a simple UTF-8 CSV file for spreadsheet tools and quick inspection.',
-                  buttonLabel: 'Export CSV',
-                  onPressed: _isExporting ? null : () => _export(false),
-                  loading: _isExporting,
-                ),
-                _ActionCard(
-                  icon: Icons.file_upload_outlined,
-                  title: 'Import Excel / CSV / JSON',
-                  description:
-                      'Import rows with hanzi, pinyin, zhuyin, meaning, and TOCFL category fields.',
-                  buttonLabel: 'Import file',
-                  onPressed: _isImporting ? null : _importFile,
-                  loading: _isImporting,
-                ),
-                _ActionCard(
-                  icon: Icons.table_chart_outlined,
-                  title: 'Download .xlsx template',
-                  description:
-                      'Get a starter workbook with TOCFL A1 examples and the expected header row.',
-                  buttonLabel: 'Download template',
-                  onPressed: _isExporting ? null : _downloadTemplate,
-                  loading: _isExporting,
-                ),
-              ],
-            );
-          }),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 820 ? 2 : 1;
+              return GridView.count(
+                crossAxisCount: columns,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: 1.25,
+                children: [
+                  _ActionCard(
+                    icon: Icons.grid_view_outlined,
+                    title: 'Export to Excel (.xlsx)',
+                    description: 'Download the full vocabulary set with the canonical TOCFL schema and pronunciation fields.',
+                    buttonLabel: 'Export XLSX',
+                    onPressed: _isExporting ? null : () => _export(true),
+                    loading: _isExporting,
+                  ),
+                  _ActionCard(
+                    icon: Icons.description_outlined,
+                    title: 'Export to CSV',
+                    description: 'Produce a simple UTF-8 CSV file for spreadsheet tools and quick inspection.',
+                    buttonLabel: 'Export CSV',
+                    onPressed: _isExporting ? null : () => _export(false),
+                    loading: _isExporting,
+                  ),
+                  _ActionCard(
+                    icon: Icons.file_upload_outlined,
+                    title: 'Import Excel / CSV / JSON',
+                    description: 'Import rows with hanzi, pinyin, zhuyin, meaning, and TOCFL category fields.',
+                    buttonLabel: 'Import file',
+                    onPressed: _isImporting ? null : _importFile,
+                    loading: _isImporting,
+                  ),
+                  _ActionCard(
+                    icon: Icons.table_chart_outlined,
+                    title: 'Download .xlsx template',
+                    description: 'Get a starter workbook with TOCFL A1 examples and the expected header row.',
+                    buttonLabel: 'Download template',
+                    onPressed: _isExporting ? null : _downloadTemplate,
+                    loading: _isExporting,
+                  ),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)..hideCurrentSnackBar()..showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _importFile() async {
@@ -100,12 +99,23 @@ class _BulkOperationsScreenState extends State<BulkOperationsScreen> {
       final extension = p.extension(file.name).toLowerCase();
       final provider = context.read<VocabProvider>();
       final importResult = switch (extension) {
-        '.xlsx' when file.bytes != null => await provider.importFromExcelBytes(file.bytes!),
-        '.csv' when file.bytes != null => await provider.importFromCsvBytes(file.bytes!),
-        '.json' when file.path != null => await provider.importFromJsonFile(file.path!),
-        _ => throw const FormatException('Choose a readable XLSX, CSV, or JSON file.'),
+        '.xlsx' when file.bytes != null => await provider.importFromExcelBytes(
+          file.bytes!,
+        ),
+        '.csv' when file.bytes != null => await provider.importFromCsvBytes(
+          file.bytes!,
+        ),
+        '.json' when file.path != null => await provider.importFromJsonFile(
+          file.path!,
+        ),
+        _ => throw const FormatException(
+          'Choose a readable XLSX, CSV, or JSON file.',
+        ),
       };
-      if (mounted) _showMessage('Imported ${importResult.importedCount} rows; skipped ${importResult.skippedCount} invalid rows.');
+      if (mounted)
+        _showMessage(
+          'Imported ${importResult.importedCount} rows; skipped ${importResult.skippedCount} invalid rows.',
+        );
     } on FormatException catch (error) {
       if (mounted) _showMessage(error.message);
     } catch (_) {
@@ -128,7 +138,9 @@ class _BulkOperationsScreenState extends State<BulkOperationsScreen> {
       );
       if (path == null || !mounted) return;
       final vocabs = context.read<VocabProvider>().vocabs;
-      final bytes = xlsx ? ExcelService.exportXlsx(vocabs) : ExcelService.exportCsv(vocabs);
+      final bytes = xlsx
+          ? ExcelService.exportXlsx(vocabs)
+          : ExcelService.exportCsv(vocabs);
       await File(path).writeAsBytes(bytes, flush: true);
       if (mounted) _showMessage('Vocabulary exported.');
     } catch (_) {
@@ -189,14 +201,23 @@ class _ActionCard extends StatelessWidget {
             const SizedBox(height: 18),
             Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            Expanded(child: Text(description, style: Theme.of(context).textTheme.bodyMedium)),
+            Expanded(
+              child: Text(
+                description,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: onPressed,
                 icon: loading
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
                     : const Icon(Icons.arrow_forward),
                 label: Text(buttonLabel),
               ),
