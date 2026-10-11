@@ -3,7 +3,7 @@ name: Build & Release Cross-Platform App
 on:
   push:
     branches:
-      - main
+      - production
 
 jobs:
   build-and-release:
