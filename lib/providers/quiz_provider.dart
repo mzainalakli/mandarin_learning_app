@@ -67,25 +67,25 @@ class QuizProvider extends ChangeNotifier {
       QuizModule.pinyinToHanziAndMeaning =>
         '${current.displayHanzi}\n${current.meaning}',
       QuizModule.hanziToPinyinAndMeaning =>
-        '${current.displayPronunciation}\n${current.meaning}',
-      QuizModule.hanziToMeaning => current.meaning,
+        '${current.displayPronunciation}\n${current.displayMeaning}',
+      QuizModule.hanziToMeaning => current.displayMeaning,
       QuizModule.zhuyinByHanzi =>
-        '${current.zhuyin ?? current.displayPronunciation}\n${current.meaning}',
+        '${current.zhuyin ?? current.displayPronunciation}\n${current.displayMeaning}',
       QuizModule.hanziByZhuyin =>
-        '${current.displayHanzi}\n${current.meaning}',
+        '${current.displayHanzi}\n${current.displayMeaning}',
     };
   }
 
   String optionText(Vocabulary vocab) => switch (_module) {
         QuizModule.pinyinToHanziAndMeaning =>
-          '${vocab.displayHanzi}  —  ${vocab.meaning}',
+          '${vocab.displayHanzi}  —  ${vocab.displayMeaning}',
         QuizModule.hanziToPinyinAndMeaning =>
-          '${vocab.displayPronunciation}  —  ${vocab.meaning}',
-        QuizModule.hanziToMeaning => vocab.meaning,
+          '${vocab.displayPronunciation}  —  ${vocab.displayMeaning}',
+        QuizModule.hanziToMeaning => vocab.displayMeaning,
         QuizModule.zhuyinByHanzi =>
-          '${vocab.zhuyin ?? vocab.displayPronunciation}  —  ${vocab.meaning}',
+          '${vocab.zhuyin ?? vocab.displayPronunciation}  —  ${vocab.displayMeaning}',
         QuizModule.hanziByZhuyin =>
-          '${vocab.displayHanzi}  —  ${vocab.meaning}',
+          '${vocab.displayHanzi}  —  ${vocab.displayMeaning}',
       };
 
   Future<void> startQuiz({

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:csv/csv.dart';
 
 import '../models/vocabulary.dart';
+import '../utils/pinyin_zhuyin.dart';
 
 class ImportParseResult {
   const ImportParseResult({required this.vocabs, required this.skippedCount});
@@ -51,13 +52,14 @@ class CsvImportService {
       final category = row.length >= 4 ? row[3].toString().trim() : '';
       final zhuyin = row.length >= 5 ? row[4].toString().trim() : '';
       final traditionalHanzi = row.length >= 6 ? row[5].toString().trim() : '';
+      final generatedZhuyin = zhuyin.isEmpty ? pinyinToZhuyin(pinyin) : zhuyin;
       vocabs.add(
         Vocabulary(
           hanzi: hanzi,
           pinyin: pinyin,
           meaning: meaning,
           category: category.isEmpty ? 'Imported' : category,
-          zhuyin: zhuyin.isEmpty ? null : zhuyin,
+          zhuyin: generatedZhuyin.isEmpty ? null : generatedZhuyin,
           traditionalHanzi: traditionalHanzi.isEmpty ? null : traditionalHanzi,
         ),
       );

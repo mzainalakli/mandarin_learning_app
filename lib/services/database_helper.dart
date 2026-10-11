@@ -1,15 +1,18 @@
 import 'dart:convert';
 
+import 'package:csv/csv.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite/sqflite.dart';
 
 import '../models/vocabulary.dart';
+import '../utils/pinyin_zhuyin.dart';
 
 class DatabaseHelper {
   DatabaseHelper._();
   static final DatabaseHelper instance = DatabaseHelper._();
-  static const _seedAsset = 'assets/data/tocfl_a1_seed.json';
+  static const _csvAsset = 'assets/data/mandarin_vocabulary.csv';
 
   Database? _db;
 
@@ -25,7 +28,7 @@ class DatabaseHelper {
     return databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 6,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE vocabularies (
@@ -63,6 +66,14 @@ class DatabaseHelper {
           }
           if (oldVersion < 4) {
             await _normalizeCategories(db);
+          }
+          if (oldVersion < 5) {
+            await db.execute('DELETE FROM vocabularies');
+            await _seedDatabase(db);
+          }
+          if (oldVersion < 6) {
+            await db.execute('DELETE FROM vocabularies');
+            await _seedDatabase(db);
           }
         },
       ),
@@ -104,24 +115,117 @@ class DatabaseHelper {
     await _normalizeCategories(db);
   }
 
+  Future<void> ensureSeeded() async {
+    final db = await database;
+    await _autoSeedIfEmpty(db);
+  }
+
+  Future<void> resetAndReloadEnglishVocabulary() async {
+    final db = await database;
+    await db.execute('DELETE FROM vocabularies');
+    await _seedDatabase(db);
+  }
+
   Future<void> _seedDatabase(Database db) async {
-    final decoded = jsonDecode(await rootBundle.loadString(_seedAsset));
-    if (decoded is! List) {
-      throw const FormatException('Seed vocabulary must be a JSON list.');
-    }
+    await _autoSeedIfEmpty(db);
+  }
+
+  Future<void> _autoSeedIfEmpty(Database db) async {
+    final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM vocabularies')) ?? 0;
+    if (count > 0) return;
+
+    final csvData = await rootBundle.loadString(_csvAsset);
+    final vocabs = _parseCsvToVocabularies(csvData);
+
+    if (vocabs.isEmpty) return;
+
     final batch = db.batch();
-    for (final row in decoded) {
-      if (row is! Map<String, dynamic>) {
-        throw const FormatException('Seed vocabulary contains an invalid row.');
-      }
-      final vocab = Vocabulary.fromMap({
-        ...row,
-        'id': null,
-        'category': Vocabulary.normalizeCategory(row['category'] as String?),
-      });
+    for (final vocab in vocabs) {
       batch.insert('vocabularies', vocab.toMap()..remove('id'));
     }
     await batch.commit(noResult: true);
+  }
+
+  List<Vocabulary> _parseCsvToVocabularies(String csvData) {
+    final rows = const CsvToListConverter().convert(csvData);
+    if (rows.isEmpty) return [];
+
+    final headerRow = rows.first
+        .map((v) => v.toString().trim().toLowerCase())
+        .toList();
+    final hanziIdx = headerRow.indexOf('hanzi');
+    final pinyinIdx = headerRow.indexOf('pinyin');
+    final meaningIdx = headerRow.indexOf('meaning');
+    final zhuyinIdx = headerRow.indexOf('zhuyin');
+    final traditionalIdx = headerRow.indexOf('traditionalhanzi');
+    final categoryIdx = headerRow.indexOf('category');
+
+    if (hanziIdx == -1 || pinyinIdx == -1 || meaningIdx == -1) return [];
+
+    final vocabs = <Vocabulary>[];
+    for (var i = 1; i < rows.length; i++) {
+      final row = rows[i];
+      if (row.every((v) => v.toString().trim().isEmpty)) continue;
+
+      final hanzi = row[hanziIdx].toString().trim();
+      final pinyin = row[pinyinIdx].toString().trim();
+      final meaning = row[meaningIdx].toString().trim();
+      if (hanzi.isEmpty || pinyin.isEmpty) continue;
+      final cleanMeaning = meaning.isEmpty ? '-' : meaning;
+
+      final traditionalHanzi = traditionalIdx >= 0 && traditionalIdx < row.length
+          ? row[traditionalIdx].toString().trim()
+          : '';
+      final zhuyin = zhuyinIdx >= 0 && zhuyinIdx < row.length
+          ? row[zhuyinIdx].toString().trim()
+          : '';
+      final csvCategory = categoryIdx >= 0 && categoryIdx < row.length
+          ? row[categoryIdx].toString().trim()
+          : '';
+
+      // Auto-assign TOCFL category based on row index (0-based from data rows)
+      final rowIndex = i - 1;
+      String inferredCategory;
+      if (rowIndex < 446) {
+        inferredCategory = 'TOCFL A1';
+      } else if (rowIndex < 894) {
+        inferredCategory = 'TOCFL A2';
+      } else if (rowIndex < 1376) {
+        inferredCategory = 'TOCFL B1';
+      } else if (rowIndex < 4376) {
+        inferredCategory = 'TOCFL B2';
+      } else if (rowIndex < 9376) {
+        inferredCategory = 'TOCFL C1';
+      } else {
+        inferredCategory = 'TOCFL C2';
+      }
+
+      // Use CSV category if valid TOCFL category, otherwise use inferred
+      final category = Vocabulary.tocflCategories.contains(csvCategory)
+          ? csvCategory
+          : inferredCategory;
+
+      String generatedZhuyin;
+      if (zhuyin.isEmpty) {
+        try {
+          generatedZhuyin = pinyinToZhuyin(pinyin);
+        } catch (_) {
+          generatedZhuyin = pinyin; // Safe fallback
+        }
+      } else {
+        generatedZhuyin = zhuyin;
+      }
+
+      vocabs.add(Vocabulary(
+        hanzi: hanzi,
+        traditionalHanzi: traditionalHanzi.isEmpty ? null : traditionalHanzi,
+        pinyin: pinyin,
+        zhuyin: generatedZhuyin.isEmpty ? null : generatedZhuyin,
+        meaning: cleanMeaning,
+        category: category,
+      ));
+    }
+    return vocabs;
   }
 
   Future<int> insertVocab(Vocabulary vocab) async {

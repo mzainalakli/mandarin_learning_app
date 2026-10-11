@@ -9,6 +9,7 @@ import '../controllers/menu_app_controller.dart';
 import '../core/responsive.dart';
 import '../models/vocabulary.dart';
 import '../providers/vocab_provider.dart';
+import '../services/database_helper.dart';
 import '../services/excel_service.dart';
 import '../services/tts_service.dart';
 import '../widgets/custom_app_bar.dart';
@@ -171,24 +172,10 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
     if (id == null || _deletingId != null) return;
     final shouldDelete = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
       title: const Text('Delete vocabulary?'),
-      content: Text('Delete "${vocab.displayHanzi} — ${vocab.meaning}"?'),
+content: Text('Delete "${vocab.displayHanzi} — ${vocab.displayMeaning}"?'),
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete'))],
     ));
     if (shouldDelete != true || !mounted) return;
-    setState(() => _deletingId = id);
-    try {
-      await context.read<VocabProvider>().deleteVocab(id);
-      if (mounted) _showMessage('Vocabulary deleted.');
-    } catch (_) {
-      if (mounted) _showMessage('Could not delete vocabulary.');
-    } finally {
-      if (mounted) setState(() => _deletingId = null);
-    }
-  }
-
-  Future<void> _deleteVocab(Vocabulary vocab) async {
-    final id = vocab.id;
-    if (id == null || _deletingId != null) return;
     setState(() => _deletingId = id);
     try {
       await context.read<VocabProvider>().deleteVocab(id);
@@ -325,11 +312,39 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
             _ActionCard(icon: Icons.description_outlined, title: 'Export to CSV', description: 'Produce a simple UTF-8 CSV file for spreadsheet tools and quick inspection.', buttonLabel: 'Export CSV', onPressed: _isExporting ? null : () => _export(false), loading: _isExporting),
             _ActionCard(icon: Icons.file_upload_outlined, title: 'Import Excel / CSV / JSON', description: 'Import rows with hanzi, pinyin, zhuyin, meaning, and TOCFL category fields.', buttonLabel: 'Import file', onPressed: _isImporting ? null : _importFile, loading: _isImporting),
             _ActionCard(icon: Icons.table_chart_outlined, title: 'Download .xlsx template', description: 'Get a starter workbook with TOCFL A1 examples and the expected header row.', buttonLabel: 'Download template', onPressed: _isExporting ? null : _downloadTemplate, loading: _isExporting),
+            _ActionCard(icon: Icons.refresh_outlined, title: 'Reset & Reload English Vocabulary', description: 'Clear all vocabulary and reload the seed data with English meanings from tocfl_a1_seed.json.', buttonLabel: 'Reset & Reload', onPressed: _isExporting ? null : _resetAndReloadVocabulary, loading: _isExporting),
           ],
         );
       }),
     ],
   );
+
+  Future<void> _resetAndReloadVocabulary() async {
+    final shouldReset = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset & Reload English Vocabulary?'),
+        content: const Text('This will delete ALL vocabulary and reload the English seed data. This action cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reset & Reload')),
+        ],
+      ),
+    );
+    if (shouldReset != true || !mounted) return;
+
+    setState(() => _isExporting = true);
+    try {
+      await DatabaseHelper.instance.resetAndReloadEnglishVocabulary();
+      if (!mounted) return;
+      await context.read<VocabProvider>().loadVocabs();
+      if (mounted) _showMessage('Vocabulary reset and reloaded with English meanings.');
+    } catch (_) {
+      if (mounted) _showMessage('Could not reset vocabulary.');
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
 
   Widget _buildListTab(VocabProvider provider, List<String> categories, EdgeInsets padding) => Column(
     children: [
@@ -432,11 +447,11 @@ class _VocabTile extends StatelessWidget {
     return Dismissible(key: ValueKey('vocab-${vocab.id}'), direction: DismissDirection.endToStart, confirmDismiss: (_) async {
       final id = vocab.id;
       if (id == null) return false;
-      return await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Delete vocabulary?'), content: Text('Delete "${vocab.displayHanzi} — ${vocab.meaning}"?'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete'))])) ?? false;
+      return await showDialog<bool>(context: context, builder: (context) => AlertDialog(title: const Text('Delete vocabulary?'), content: Text('Delete "${vocab.displayHanzi} — ${vocab.displayMeaning}"?'), actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete'))])) ?? false;
     }, onDismissed: (_) => onDelete(vocab), background: Container(alignment: Alignment.centerRight, padding: const EdgeInsets.symmetric(horizontal: 24), decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(20)), child: const Icon(Icons.delete_outline, color: Colors.red)), child: ResponsiveCard(elevation: 1.5, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.28))), child: ListTile(
       leading: GestureDetector(onTap: onPronounce, child: Container(width: 56, height: 56, alignment: Alignment.center, decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(18)), child: Text(vocab.displayHanzi, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)))),
-      title: Text('${vocab.displayPronunciationFull} • ${vocab.category}', style: Theme.of(context).textTheme.titleMedium),
-      subtitle: Padding(padding: const EdgeInsets.only(top: 6), child: Text('${vocab.meaning}${vocab.reviewCount > 0 ? ' • ${vocab.correctCount}/${vocab.reviewCount}' : ''}${vocab.traditionalHanzi != null && vocab.traditionalHanzi != vocab.hanzi ? ' • Trad: ${vocab.traditionalHanzi}' : ''}')),
+      title: Text('${vocab.displayPronunciationWithZhuyin} • ${vocab.category}', style: Theme.of(context).textTheme.titleMedium),
+      subtitle: Padding(padding: const EdgeInsets.only(top: 6), child: Text('${vocab.displayMeaning}${vocab.reviewCount > 0 ? ' • ${vocab.correctCount}/${vocab.reviewCount}' : ''}${vocab.traditionalHanzi != null && vocab.traditionalHanzi != vocab.hanzi ? ' • Trad: ${vocab.traditionalHanzi}' : ''}')),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         IconButton(icon: const Icon(Icons.volume_up_outlined), onPressed: onPronounce, tooltip: 'Pronounce'),
         IconButton(icon: deleting ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.delete_outline), onPressed: deleting ? null : () => onDelete(vocab), tooltip: 'Delete'),

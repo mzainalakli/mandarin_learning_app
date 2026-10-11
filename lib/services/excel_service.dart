@@ -5,6 +5,7 @@ import 'package:csv/csv.dart';
 import 'package:excel/excel.dart';
 
 import '../models/vocabulary.dart';
+import '../utils/pinyin_zhuyin.dart';
 
 class VocabularyImportData {
   const VocabularyImportData({
@@ -55,7 +56,7 @@ class ExcelService {
         '你好',
         'nǐ hǎo',
         'ㄋㄧˇ ㄏㄠˇ',
-        'halo / apa kabar',
+        'hello',
         'TOCFL A1',
       ].map(TextCellValue.new).toList(),
     );
@@ -65,7 +66,7 @@ class ExcelService {
         '謝謝',
         'xiè xie',
         'ㄒㄧㄝˋ ˙ㄒㄧㄝ',
-        'terima kasih',
+        'thank you',
         'TOCFL A1',
       ].map(TextCellValue.new).toList(),
     );
@@ -75,7 +76,7 @@ class ExcelService {
         '再見',
         'zài jiàn',
         'ㄗㄞˋ ㄐㄧㄢˋ',
-        'sampai jumpa',
+        'goodbye',
         'TOCFL A1',
       ].map(TextCellValue.new).toList(),
     );
@@ -116,7 +117,7 @@ class ExcelService {
           }).toList(),
         )
         .toList();
-    return _parseRows(rows);
+    return parseRows(rows);
   }
 
   static VocabularyImportData importCsv(List<int> bytes) {
@@ -128,12 +129,12 @@ class ExcelService {
     }
     try {
       final rows = const CsvToListConverter().convert(decoded);
-      return _parseRows(
+      return parseRows(
         rows.map((row) => row.map((cell) => cell.toString()).toList()).toList(),
       );
     } on FormatException catch (error) {
       if (!error.message.contains('Required headers')) rethrow;
-      return _parseRows(_parseSimpleCsv(decoded));
+      return parseRows(_parseSimpleCsv(decoded));
     }
   }
 
@@ -144,7 +145,7 @@ class ExcelService {
           .map((line) => line.split(',').map((cell) => cell.trim()).toList())
           .toList();
 
-  static VocabularyImportData _parseRows(List<List<String>> rows) {
+  static VocabularyImportData parseRows(List<List<String>> rows) {
     if (rows.isEmpty) {
       return const VocabularyImportData(vocabs: [], skippedCount: 0);
     }
@@ -196,12 +197,13 @@ class ExcelService {
       final category = valueAt(categoryIndex);
       final subcategory = valueAt(subcategoryIndex);
       final rowId = valueAt(idIndex);
+      final generatedZhuyin = zhuyin.isEmpty ? pinyinToZhuyin(pinyin) : zhuyin;
       vocabs.add(
         Vocabulary(
           hanzi: hanzi,
           traditionalHanzi: traditionalHanzi.isEmpty ? null : traditionalHanzi,
           pinyin: pinyin,
-          zhuyin: zhuyin.isEmpty ? null : zhuyin,
+          zhuyin: generatedZhuyin.isEmpty ? null : generatedZhuyin,
           meaning: meaning,
           category: _normalizedCategory(category, subcategory, rowId),
         ),

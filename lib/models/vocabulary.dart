@@ -54,6 +54,15 @@ class Vocabulary {
 
   double get accuracy => reviewCount == 0 ? 0.0 : correctCount / reviewCount;
 
+  String get displayMeaning => meaning.trim().isEmpty ? '-' : meaning;
+
+  String get displayPronunciationWithZhuyin {
+    if (zhuyin != null && zhuyin!.isNotEmpty) {
+      return '$pinyin ($zhuyin)';
+    }
+    return pinyin;
+  }
+
   Vocabulary copyWith({
     int? id,
     String? hanzi,

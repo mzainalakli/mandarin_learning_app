@@ -28,6 +28,11 @@ class VocabProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  Future<void> initialize() async {
+    await DatabaseHelper.instance.ensureSeeded();
+    await loadVocabs();
+  }
+
   Future<void> loadVocabs({
     String? category,
     String? searchQuery,

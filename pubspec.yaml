@@ -28,4 +28,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/data/tocfl_a1_seed.json
+    - assets/data/mandarin_vocabulary.csv

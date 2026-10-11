@@ -18,10 +18,12 @@ Future<void> main() async {
   }
   final settingsProvider = SettingsProvider();
   await settingsProvider.load();
+  final vocabProvider = VocabProvider();
+  await vocabProvider.initialize();
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => VocabProvider()),
+        ChangeNotifierProvider.value(value: vocabProvider),
         ChangeNotifierProvider(create: (_) => QuizProvider()),
         ChangeNotifierProvider(create: (_) => MenuAppController()),
         ChangeNotifierProvider.value(value: settingsProvider),

@@ -4,11 +4,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../controllers/menu_app_controller.dart';
 import '../../core/responsive.dart';
 import '../../models/vocabulary.dart';
 import '../../providers/quiz_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/tts_service.dart';
+import '../../widgets/custom_app_bar.dart';
 
 class QuizSessionScreen extends StatefulWidget {
   const QuizSessionScreen({
@@ -163,9 +165,8 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) => !didPop ? _leave() : null,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(_title(widget.module)),
-          leading: IconButton(icon: const Icon(Icons.close), tooltip: 'Leave quiz', onPressed: _leave),
+        appBar: CustomAppBar(
+          title: _title(widget.module),
           actions: [
             if (!isMobile) ...[
               TextButton.icon(
