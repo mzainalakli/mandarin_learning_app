@@ -192,4 +192,28 @@ class VocabProvider extends ChangeNotifier {
     await DatabaseHelper.instance.normalizeAllCategories();
     await loadVocabs();
   }
+
+  Future<void> loadLibraryVocabularies(int libraryId, {String? searchQuery}) async {
+    _isLoading = true;
+    _currentPage = 0;
+    notifyListeners();
+
+    try {
+      _vocabs = await DatabaseHelper.instance.getLibraryVocabularies(libraryId);
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        final q = searchQuery.toLowerCase();
+        _vocabs = _vocabs.where((v) {
+          return v.hanzi.toLowerCase().contains(q) ||
+              v.pinyin.toLowerCase().contains(q) ||
+              v.meaning.toLowerCase().contains(q) ||
+              (v.zhuyin?.toLowerCase().contains(q) ?? false) ||
+              (v.traditionalHanzi?.toLowerCase().contains(q) ?? false);
+        }).toList();
+      }
+      _totalCount = _vocabs.length;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
 }

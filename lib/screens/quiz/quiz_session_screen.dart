@@ -49,14 +49,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
   }
 
   Future<void> _init() async {
-    final quiz = context.read<QuizProvider>();
-
-    await quiz.startQuiz(
-      category: widget.category,
-      module: widget.module,
-      answerMode: widget.answerMode,
-      sessionSize: widget.sessionSize,
-    );
+    // Quiz is already started in QuizModeSelectionScreen, just start timer
     _startTimer();
     setState(() => _loaded = true);
   }
@@ -173,7 +166,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
       onPopInvokedWithResult: (didPop, _) => !didPop ? _leave() : null,
       child: Scaffold(
         appBar: CustomAppBar(
-          title: _title(widget.module),
+          title: _getAppBarTitle(quiz, widget.module),
           actions: [
             if (!isMobile) ...[
               TextButton.icon(
@@ -275,13 +268,18 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
     ),
   );
 
-  String _title(QuizModule module) => switch (module) {
-    QuizModule.pinyinToHanziAndMeaning => 'Pronunciation → Hanzi',
-    QuizModule.hanziToPinyinAndMeaning => 'Hanzi → Pronunciation',
-    QuizModule.hanziToMeaning => 'Hanzi → Meaning',
-    QuizModule.zhuyinByHanzi => 'Hanzi → Zhuyin',
-    QuizModule.hanziByZhuyin => 'Zhuyin → Hanzi',
-  };
+  String _getAppBarTitle(QuizProvider quiz, QuizModule module) {
+    if (quiz.currentLibraryId != null) {
+      return 'Library Quiz';
+    }
+    return switch (module) {
+      QuizModule.pinyinToHanziAndMeaning => 'Pronunciation → Hanzi',
+      QuizModule.hanziToPinyinAndMeaning => 'Hanzi → Pronunciation',
+      QuizModule.hanziToMeaning => 'Hanzi → Meaning',
+      QuizModule.zhuyinByHanzi => 'Hanzi → Zhuyin',
+      QuizModule.hanziByZhuyin => 'Zhuyin → Hanzi',
+    };
+  }
 }
 
 class _FinishedCard extends StatelessWidget {

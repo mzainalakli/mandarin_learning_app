@@ -47,6 +47,12 @@ class QuizProvider extends ChangeNotifier {
       _allVocabs.isEmpty ? 0.0 : _completedCount / _allVocabs.length;
   bool get hasCurrent => _current != null;
 
+  // Track current quiz source for reference
+  String? _currentCategory;
+  int? _currentLibraryId;
+  String? get currentCategory => _currentCategory;
+  int? get currentLibraryId => _currentLibraryId;
+
   String get questionText {
     final current = _current;
     if (current == null) return '';
@@ -93,8 +99,30 @@ class QuizProvider extends ChangeNotifier {
     required QuizAnswerMode answerMode,
     int sessionSize = 20,
   }) async {
+    _currentCategory = category;
+    _currentLibraryId = null;
     final vocabs = await DatabaseHelper.instance.getQuizVocabulary(
       category: category,
+      limit: sessionSize,
+    );
+    _initQuiz(
+      vocabs,
+      module: module,
+      answerMode: answerMode,
+      sessionSize: sessionSize,
+    );
+  }
+
+  Future<void> startQuizFromLibrary({
+    required int libraryId,
+    required QuizModule module,
+    required QuizAnswerMode answerMode,
+    int sessionSize = 20,
+  }) async {
+    _currentCategory = null;
+    _currentLibraryId = libraryId;
+    final vocabs = await DatabaseHelper.instance.getQuizVocabularyFromLibrary(
+      libraryId: libraryId,
       limit: sessionSize,
     );
     _initQuiz(
@@ -111,6 +139,8 @@ class QuizProvider extends ChangeNotifier {
     required QuizAnswerMode answerMode,
     int sessionSize = 20,
   }) {
+    _currentCategory = null;
+    _currentLibraryId = null;
     _initQuiz(
       vocabs,
       module: module,

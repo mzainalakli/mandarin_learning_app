@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,11 +8,13 @@ import 'package:provider/provider.dart';
 
 import '../core/responsive.dart';
 import '../models/vocabulary.dart';
+import '../models/library_list.dart';
 import '../providers/vocab_provider.dart';
 import '../services/database_helper.dart';
 import '../services/excel_service.dart';
 import '../services/tts_service.dart';
 import '../widgets/custom_app_bar.dart';
+import '../screens/dictionary/vocab_detail_modal.dart';
 
 class ManageVocabScreen extends StatefulWidget {
   const ManageVocabScreen({super.key});
@@ -33,20 +36,26 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
 
   String _selectedCategory = Vocabulary.tocflCategories.first;
   String _filterCategory = 'All';
-  String _searchQuery = '';
+  String _debouncedSearchQuery = '';
+  Timer? _searchDebounceTimer;
   bool _isSaving = false;
   bool _isImporting = false;
   bool _isExporting = false;
   int? _deletingId;
+  List<LibraryList> _libraries = [];
 
   @override
   void initState() {
     super.initState();
     _loadVocabs();
+    _loadLibraries();
+    _searchCtrl.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
+    _searchDebounceTimer?.cancel();
+    _searchCtrl.removeListener(_onSearchChanged);
     _hanziCtrl.dispose();
     _traditionalCtrl.dispose();
     _pinyinCtrl.dispose();
@@ -56,20 +65,48 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
     super.dispose();
   }
 
+  Future<void> _loadLibraries() async {
+    try {
+      final libs = await DatabaseHelper.instance.getAllLibraries();
+      if (mounted) {
+        setState(() {
+          _libraries = libs;
+        });
+      }
+    } catch (_) {
+      // Ignore error, _libraries remains empty
+    }
+  }
+
   Future<void> _loadVocabs() async {
     try {
-      await context.read<VocabProvider>().loadVocabs(
-        category: _filterCategory,
-        searchQuery: _searchQuery,
-      );
+      if (_filterCategory.startsWith('Library: ')) {
+        final libName = _filterCategory.substring('Library: '.length);
+        final lib = _libraries.firstWhere((l) => l.name == libName);
+        await context.read<VocabProvider>().loadLibraryVocabularies(
+          lib.id,
+          searchQuery: _debouncedSearchQuery.isEmpty ? null : _debouncedSearchQuery,
+        );
+      } else {
+        await context.read<VocabProvider>().loadVocabs(
+          category: _filterCategory == 'All' ? null : _filterCategory,
+          searchQuery: _debouncedSearchQuery.isEmpty ? null : _debouncedSearchQuery,
+        );
+      }
     } catch (_) {
       if (mounted) _showMessage('Could not load vocabulary.');
     }
   }
 
-  void _onSearchChanged(String query) {
-    setState(() => _searchQuery = query);
-    _loadVocabs();
+  void _onSearchChanged() {
+    final query = _searchCtrl.text.trim();
+    _searchDebounceTimer?.cancel();
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) {
+        setState(() => _debouncedSearchQuery = query);
+        _loadVocabs();
+      }
+    });
   }
 
   void _onCategoryChanged(String category) {
@@ -81,6 +118,28 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openVocabDetail(Vocabulary vocab) async {
+    await VocabDetailModal.show(
+      context,
+      vocab: vocab,
+      onVocabAddedToLibrary: () => setState(() {}),
+    );
+  }
+
+  Future<void> _showAddToLibraryOptions(Vocabulary vocab) async {
+    if (vocab.id == null) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _AddToLibraryBottomSheet(
+        vocab: vocab,
+        libraries: _libraries,
+        onVocabAdded: () => setState(() {}),
+      ),
+    );
   }
 
   Future<void> _addWord() async {
@@ -582,7 +641,7 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
     }
   }
 
-  Widget _buildListTab(
+Widget _buildListTab(
     VocabProvider provider,
     List<String> categories,
     EdgeInsets padding,
@@ -597,7 +656,7 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
         ),
         child: TextField(
           controller: _searchCtrl,
-          onChanged: _onSearchChanged,
+          onChanged: (_) {}, // Handled by listener with debounce
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.search),
             labelText: 'Search hanzi, zhuyin, pinyin, meaning, or category',
@@ -622,6 +681,16 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
                 onSelected: () => _onCategoryChanged(c),
               ),
             ),
+            if (_libraries.isNotEmpty) ...[
+              const Padding(padding: EdgeInsets.only(right: 8)),
+              ..._libraries.map(
+                (lib) => _CategoryChip(
+                  label: '📚 ${lib.name}',
+                  selected: _filterCategory == 'Library: ${lib.name}',
+                  onSelected: () => _onCategoryChanged('Library: ${lib.name}'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -630,38 +699,41 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
         child: provider.isLoading
             ? const Center(child: CircularProgressIndicator())
             : provider.vocabs.isEmpty
-            ? const Center(child: Text('No vocabulary yet.'))
-            : Column(
-                children: [
-                  Expanded(
-                    child: ListView.separated(
-                      padding: EdgeInsets.fromLTRB(
-                        padding.left,
-                        4,
-                        padding.right,
-                        24,
-                      ),
-                      itemCount: provider.vocabs.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
-                      itemBuilder: (_, index) {
-                        final vocab = provider.vocabs[index];
-                        Future<void> onPronounce() async {
-                          await TtsService.instance.speak(vocab.displayHanzi);
-                        }
+                ? const Center(child: Text('No vocabulary yet.'))
+                : Column(
+                    children: [
+                      Expanded(
+                        child: ListView.separated(
+                          padding: EdgeInsets.fromLTRB(
+                            padding.left,
+                            4,
+                            padding.right,
+                            24,
+                          ),
+                          itemCount: provider.vocabs.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          itemBuilder: (_, index) {
+                            final vocab = provider.vocabs[index];
+                            Future<void> onPronounce() async {
+                              await TtsService.instance.speak(vocab.displayHanzi);
+                            }
 
-                        return _VocabTile(
-                          vocab: vocab,
-                          deletingId: _deletingId,
-                          onDelete: _confirmDelete,
-                          onPronounce: onPronounce,
-                        );
-                      },
-                    ),
+                            return _VocabTile(
+                              vocab: vocab,
+                              deletingId: _deletingId,
+                              onDelete: _confirmDelete,
+                              onPronounce: onPronounce,
+                              onTap: () => _openVocabDetail(vocab),
+                              onAddToLibrary: () => _showAddToLibraryOptions(vocab),
+                            );
+                          },
+                        ),
+                      ),
+                      if (!_filterCategory.startsWith('Library: ') &&
+                          provider.totalCount > VocabProvider.pageSize)
+                        _PaginationControls(provider: provider),
+                    ],
                   ),
-                  if (provider.totalCount > VocabProvider.pageSize)
-                    _PaginationControls(provider: provider),
-                ],
-              ),
       ),
     ],
   );
@@ -814,11 +886,15 @@ class _VocabTile extends StatelessWidget {
     required this.deletingId,
     required this.onDelete,
     required this.onPronounce,
+    required this.onTap,
+    required this.onAddToLibrary,
   });
   final Vocabulary vocab;
   final int? deletingId;
   final Future<void> Function(Vocabulary) onDelete;
   final Future<void> Function() onPronounce;
+  final VoidCallback onTap;
+  final VoidCallback onAddToLibrary;
 
   @override
   Widget build(BuildContext context) {
@@ -869,6 +945,7 @@ class _VocabTile extends StatelessWidget {
                 .withValues(alpha: 0.28),
           ),
         ),
+        onTap: onTap,
         child: ListTile(
           leading: GestureDetector(
             onTap: onPronounce,
@@ -907,6 +984,11 @@ class _VocabTile extends StatelessWidget {
                 icon: const Icon(Icons.volume_up_outlined),
                 onPressed: onPronounce,
                 tooltip: 'Pronounce',
+              ),
+              IconButton(
+                icon: const Icon(Icons.library_add_outlined),
+                onPressed: onAddToLibrary,
+                tooltip: 'Add to Library',
               ),
               IconButton(
                 icon: deleting
@@ -961,6 +1043,203 @@ class _PaginationControls extends StatelessWidget {
             tooltip: 'Next page',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AddToLibraryBottomSheet extends StatefulWidget {
+  const _AddToLibraryBottomSheet({
+    required this.vocab,
+    required this.libraries,
+    required this.onVocabAdded,
+  });
+
+  final Vocabulary vocab;
+  final List<LibraryList> libraries;
+  final VoidCallback onVocabAdded;
+
+  @override
+  State<_AddToLibraryBottomSheet> createState() => _AddToLibraryBottomSheetState();
+}
+
+class _AddToLibraryBottomSheetState extends State<_AddToLibraryBottomSheet> {
+  int? _addingToLibraryId;
+  final _newLibraryCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _newLibraryCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _addToLibrary(int libraryId) async {
+    if (widget.vocab.id == null) return;
+    setState(() => _addingToLibraryId = libraryId);
+    try {
+      await DatabaseHelper.instance.addVocabToLibrary(libraryId, widget.vocab.id!);
+      if (mounted) {
+        widget.onVocabAdded();
+        Navigator.pop(context);
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to add to library')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _addingToLibraryId = null);
+    }
+  }
+
+  Future<void> _createAndAdd() async {
+    if (widget.vocab.id == null) return;
+    final name = _newLibraryCtrl.text.trim();
+    if (name.isEmpty) return;
+
+    final libraryId = await DatabaseHelper.instance.createLibrary(name);
+    await _addToLibrary(libraryId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isSmallScreen = Responsive.isMobile(context);
+
+    return DraggableScrollableSheet(
+      initialChildSize: isSmallScreen ? 0.6 : 0.4,
+      minChildSize: 0.3,
+      maxChildSize: 0.8,
+      expand: false,
+      builder: (context, scrollController) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Add to Library',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '"${widget.vocab.displayHanzi}" — ${widget.vocab.displayMeaning}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 20),
+                  if (widget.libraries.isEmpty) ...[
+                    Text(
+                      'No libraries yet. Create one to save this word.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _newLibraryCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'New library name',
+                        hintText: 'My Custom Library',
+                        prefixIcon: Icon(Icons.add),
+                      ),
+                      onSubmitted: (_) => _createAndAdd(),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: _addingToLibraryId == -1
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.add),
+                        label: const Text('Create Library & Add'),
+                        onPressed: _addingToLibraryId != null ? null : _createAndAdd,
+                      ),
+                    ),
+                  ] else ...[
+                    Text(
+                      'Select a library:',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        itemCount: widget.libraries.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final lib = widget.libraries[index];
+                          final isAdding = _addingToLibraryId == lib.id;
+                          return ListTile(
+                            leading: Icon(
+                              Icons.library_books_outlined,
+                              color: isAdding ? Theme.of(context).colorScheme.onSurfaceVariant : Theme.of(context).colorScheme.primary,
+                            ),
+                            title: Text(lib.name),
+                            subtitle: Text('${lib.itemCount} words • ${lib.formattedDate}'),
+                            trailing: isAdding
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
+                            onTap: isAdding ? null : () => _addToLibrary(lib.id),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _newLibraryCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Or create new library',
+                        hintText: 'New library name',
+                        prefixIcon: Icon(Icons.add),
+                      ),
+                      onSubmitted: (_) => _createAndAdd(),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        icon: _addingToLibraryId == -1
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.add),
+                        label: const Text('Create & Add'),
+                        onPressed: _addingToLibraryId != null ? null : _createAndAdd,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

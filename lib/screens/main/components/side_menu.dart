@@ -32,22 +32,28 @@ class _SideMenuState extends State<SideMenu> {
       index: 2,
     ),
     _MenuItem(
-      title: 'Manage Vocabulary',
+      title: 'My Library',
+      icon: Icons.library_books_outlined,
+      selectedIcon: Icons.library_books,
+      index: 3,
+    ),
+    _MenuItem(
+      title: 'Dictionary',
       icon: Icons.menu_book_outlined,
       selectedIcon: Icons.menu_book,
-      index: 3,
+      index: 4,
     ),
     _MenuItem(
       title: 'Import / Export',
       icon: Icons.import_export_outlined,
       selectedIcon: Icons.import_export,
-      index: 4,
+      index: 5,
     ),
     _MenuItem(
       title: 'Settings',
       icon: Icons.settings_outlined,
       selectedIcon: Icons.settings,
-      index: 5,
+      index: 6,
     ),
   ];
 

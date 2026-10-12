@@ -60,7 +60,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final menuController = context.read<MenuAppController>();
-    final colors = Theme.of(context).colorScheme;
     final accuracy = _totalReviews == 0 ? 0.0 : _totalCorrect / _totalReviews;
 
     return SingleChildScrollView(
@@ -73,9 +72,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             totalReviews: _totalReviews,
             accuracy: accuracy,
             onStartQuiz: () => menuController.selectMenu(1),
-            onManageWords: () => menuController.selectMenu(2),
-            onImportExport: () => menuController.selectMenu(3),
-            onSettings: () => menuController.selectMenu(4),
+            onManageWords: () => menuController.selectMenu(4),
+            onMyLibrary: () => menuController.selectMenu(3),
+            onImportExport: () => menuController.selectMenu(5),
+            onSettings: () => menuController.selectMenu(6),
           ),
           const SizedBox(height: 24),
           _TOCFLProgressGrid(tocflCounts: _tocflCounts),
@@ -94,6 +94,7 @@ class _HeroCard extends StatelessWidget {
     required this.accuracy,
     required this.onStartQuiz,
     required this.onManageWords,
+    required this.onMyLibrary,
     required this.onImportExport,
     required this.onSettings,
   });
@@ -103,12 +104,12 @@ class _HeroCard extends StatelessWidget {
   final double accuracy;
   final VoidCallback onStartQuiz;
   final VoidCallback onManageWords;
+  final VoidCallback onMyLibrary;
   final VoidCallback onImportExport;
   final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final bp = Responsive.getBreakpoint(context);
     final isMobile = bp == AppBreakpoint.mobile;
 
@@ -200,6 +201,11 @@ class _HeroCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
+                  ),
+                  _HeroActionChip(
+                    icon: Icons.library_books_outlined,
+                    label: 'My Library',
+                    onTap: onMyLibrary,
                   ),
                   _HeroActionChip(
                     icon: Icons.import_export_outlined,
@@ -460,8 +466,6 @@ class _TOCFLBandCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = Responsive.isMobile(context);
-
     return ResponsiveCard(
       elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -617,6 +621,14 @@ class _PracticeModuleCards extends StatelessWidget {
               icon: Icons.translate_outlined,
               colors: const [Color(0xFF6B3A8C), Color(0xFF9B59B6)],
               onTap: () => menuController.selectMenu(2),
+            ),
+            _ModuleBentoCard(
+              index: '05',
+              title: 'My Library',
+              subtitle: 'Create custom wordlists and practice with your own vocabulary.',
+              icon: Icons.library_books_outlined,
+              colors: const [Color(0xFF7C3AED), Color(0xFFA855F7)],
+              onTap: () => menuController.selectMenu(3),
             ),
           ],
         ),

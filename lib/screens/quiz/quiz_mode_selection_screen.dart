@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/vocabulary.dart';
+import '../../models/library_list.dart';
 import '../../providers/quiz_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../services/database_helper.dart';
 import '../../widgets/custom_app_bar.dart';
 import 'quiz_session_screen.dart';
 
@@ -11,9 +13,11 @@ class QuizModeSelectionScreen extends StatefulWidget {
   const QuizModeSelectionScreen({
     super.key,
     this.initialModule = QuizModule.pinyinToHanziAndMeaning,
+    this.initialLibrary,
   });
 
   final QuizModule initialModule;
+  final LibraryList? initialLibrary;
 
   @override
   State<QuizModeSelectionScreen> createState() =>
@@ -23,17 +27,42 @@ class QuizModeSelectionScreen extends StatefulWidget {
 class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
   int _sessionSize = 20;
   String _selectedCategory = 'All';
+  int? _selectedLibraryId;
+  List<LibraryList> _libraries = [];
 
   @override
   void initState() {
     super.initState();
-    setState(() => _selectedCategory = 'All');
+    _loadLibraries();
+    if (widget.initialLibrary != null) {
+      _selectedLibraryId = widget.initialLibrary!.id;
+      _selectedCategory = 'Library: ${widget.initialLibrary!.name}';
+    } else {
+      setState(() => _selectedCategory = 'All');
+    }
+  }
+
+  Future<void> _loadLibraries() async {
+    try {
+      final libs = await DatabaseHelper.instance.getAllLibraries();
+      if (mounted) {
+        setState(() {
+          _libraries = libs;
+        });
+      }
+    } catch (_) {
+      // Ignore error, _libraries remains empty
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final categories = Vocabulary.allCategoriesForFilter;
+    final libraryOptions = _libraries
+        .map((l) => 'Library: ${l.name}')
+        .toList();
+    final allCategories = [...categories, ...libraryOptions];
 
     return Scaffold(
       appBar: const CustomAppBar(title: 'Practice Quiz'),
@@ -85,19 +114,30 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
                       DropdownButtonFormField<String>(
                         initialValue: Vocabulary.safeDropdownValue(
                           _selectedCategory,
-                          categories,
+                          allCategories,
                         ),
-                        items: categories
+                        items: allCategories
                             .map(
                               (c) => DropdownMenuItem(value: c, child: Text(c)),
                             )
                             .toList(),
                         onChanged: (value) {
-                          if (value != null)
-                            setState(() => _selectedCategory = value);
+                          if (value != null) {
+                            setState(() {
+                              _selectedCategory = value;
+                              // Check if it's a library selection
+                              if (value.startsWith('Library: ')) {
+                                final libName = value.substring('Library: '.length);
+                                final lib = _libraries.firstWhere((l) => l.name == libName);
+                                _selectedLibraryId = lib.id;
+                              } else {
+                                _selectedLibraryId = null;
+                              }
+                            });
+                          }
                         },
                         decoration: const InputDecoration(
-                          labelText: 'TOCFL Category',
+                          labelText: 'Category / Library',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -186,6 +226,24 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
   void _openQuiz(BuildContext context, QuizAnswerMode answerMode) async {
     if (!mounted) return;
 
+    final quizProvider = context.read<QuizProvider>();
+    if (_selectedLibraryId != null) {
+      await quizProvider.startQuizFromLibrary(
+        libraryId: _selectedLibraryId!,
+        module: widget.initialModule,
+        answerMode: answerMode,
+        sessionSize: _sessionSize,
+      );
+    } else {
+      await quizProvider.startQuiz(
+        category: _selectedCategory,
+        module: widget.initialModule,
+        answerMode: answerMode,
+        sessionSize: _sessionSize,
+      );
+    }
+
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => QuizSessionScreen(
