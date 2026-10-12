@@ -5,6 +5,7 @@ import '../../controllers/menu_app_controller.dart';
 import '../../core/responsive.dart';
 import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/dashboard/bulk_operations_screen.dart';
+import '../../screens/library/library_screen.dart';
 import '../../screens/quiz/bopomofo_training_screen.dart';
 import '../../screens/quiz/quiz_mode_selection_screen.dart';
 import '../../views/manage_vocab_screen.dart';
@@ -60,15 +61,20 @@ class MainScreen extends StatelessWidget {
                           _buildTab(
                             3,
                             menuController.selectedIndex,
-                            const ManageVocabScreen(),
+                            const LibraryScreen(),
                           ),
                           _buildTab(
                             4,
                             menuController.selectedIndex,
-                            const BulkOperationsScreen(),
+                            const ManageVocabScreen(),
                           ),
                           _buildTab(
                             5,
+                            menuController.selectedIndex,
+                            const BulkOperationsScreen(),
+                          ),
+                          _buildTab(
+                            6,
                             menuController.selectedIndex,
                             const SettingsScreen(),
                           ),
@@ -94,10 +100,12 @@ class MainScreen extends StatelessWidget {
       case 2:
         return 'Bopomofo Training';
       case 3:
-        return 'Manage Vocabulary';
+        return 'My Library';
       case 4:
-        return 'Import / Export';
+        return 'Dictionary';
       case 5:
+        return 'Import / Export';
+      case 6:
         return 'Settings';
       default:
         return 'Dashboard';

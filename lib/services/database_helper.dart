@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../models/vocabulary.dart';
+import '../models/library_list.dart';
 import '../utils/pinyin_zhuyin.dart';
 
 class DatabaseHelper {
@@ -25,22 +26,9 @@ class DatabaseHelper {
     return databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 6,
+        version: 7,
         onCreate: (db, version) async {
-          await db.execute('''
-            CREATE TABLE vocabularies (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              hanzi TEXT NOT NULL,
-              pinyin TEXT NOT NULL,
-              zhuyin TEXT,
-              traditionalHanzi TEXT,
-              meaning TEXT NOT NULL,
-              category TEXT NOT NULL,
-              reviewCount INTEGER NOT NULL DEFAULT 0,
-              correctCount INTEGER NOT NULL DEFAULT 0,
-              lastReviewed TEXT NOT NULL DEFAULT ''
-            )
-          ''');
+          await _createTables(db);
           await _seedDatabase(db);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
@@ -72,9 +60,49 @@ class DatabaseHelper {
             await db.execute('DELETE FROM vocabularies');
             await _seedDatabase(db);
           }
+          if (oldVersion < 7) {
+            await _createLibraryTables(db);
+          }
         },
       ),
     );
+  }
+
+  Future<void> _createTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE vocabularies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        hanzi TEXT NOT NULL,
+        pinyin TEXT NOT NULL,
+        zhuyin TEXT,
+        traditionalHanzi TEXT,
+        meaning TEXT NOT NULL,
+        category TEXT NOT NULL,
+        reviewCount INTEGER NOT NULL DEFAULT 0,
+        correctCount INTEGER NOT NULL DEFAULT 0,
+        lastReviewed TEXT NOT NULL DEFAULT ''
+      )
+    ''');
+    await _createLibraryTables(db);
+  }
+
+  Future<void> _createLibraryTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE user_libraries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE library_vocab_items (
+        library_id INTEGER NOT NULL,
+        vocab_id INTEGER NOT NULL,
+        PRIMARY KEY (library_id, vocab_id),
+        FOREIGN KEY (library_id) REFERENCES user_libraries(id) ON DELETE CASCADE,
+        FOREIGN KEY (vocab_id) REFERENCES vocabularies(id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   Future<void> _normalizeCategories(Database db) async {
@@ -431,4 +459,140 @@ class DatabaseHelper {
     }
     return vocabs;
   }
+
+  // ===== LIBRARY METHODS =====
+
+  Future<int> createLibrary(String name) async {
+    final db = await database;
+    return db.insert('user_libraries', {
+      'name': name,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<List<LibraryList>> getAllLibraries() async {
+    final db = await database;
+    final maps = await db.rawQuery('''
+      SELECT l.id, l.name, l.created_at,
+             COUNT(lvi.vocab_id) as item_count
+      FROM user_libraries l
+      LEFT JOIN library_vocab_items lvi ON l.id = lvi.library_id
+      GROUP BY l.id, l.name, l.created_at
+      ORDER BY l.created_at DESC
+    ''');
+    return maps.map(_libraryListFromMap).toList();
+  }
+
+  Future<int> renameLibrary(int id, String newName) async {
+    final db = await database;
+    return db.update(
+      'user_libraries',
+      {'name': newName},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<int> deleteLibrary(int id) async {
+    final db = await database;
+    return db.delete('user_libraries', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> addVocabToLibrary(int libraryId, int vocabId) async {
+    final db = await database;
+    return db.insert(
+      'library_vocab_items',
+      {'library_id': libraryId, 'vocab_id': vocabId},
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  Future<int> addVocabsToLibrary(int libraryId, List<int> vocabIds) async {
+    if (vocabIds.isEmpty) return 0;
+    final db = await database;
+    final batch = db.batch();
+    for (final vocabId in vocabIds) {
+      batch.insert(
+        'library_vocab_items',
+        {'library_id': libraryId, 'vocab_id': vocabId},
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+    }
+    await batch.commit(noResult: true);
+    return vocabIds.length;
+  }
+
+  Future<int> removeVocabFromLibrary(int libraryId, int vocabId) async {
+    final db = await database;
+    return db.delete(
+      'library_vocab_items',
+      where: 'library_id = ? AND vocab_id = ?',
+      whereArgs: [libraryId, vocabId],
+    );
+  }
+
+  Future<int> removeVocabsFromLibrary(int libraryId, List<int> vocabIds) async {
+    if (vocabIds.isEmpty) return 0;
+    final db = await database;
+    final batch = db.batch();
+    for (final vocabId in vocabIds) {
+      batch.delete(
+        'library_vocab_items',
+        where: 'library_id = ? AND vocab_id = ?',
+        whereArgs: [libraryId, vocabId],
+      );
+    }
+    await batch.commit(noResult: true);
+    return vocabIds.length;
+  }
+
+  Future<List<Vocabulary>> getLibraryVocabularies(int libraryId, {int limit = 10000}) async {
+    final db = await database;
+    final maps = await db.rawQuery('''
+      SELECT v.* FROM vocabularies v
+      JOIN library_vocab_items lvi ON v.id = lvi.vocab_id
+      WHERE lvi.library_id = ?
+      ORDER BY v.category, v.hanzi
+      LIMIT ?
+    ''', [libraryId, limit]);
+    return maps.map(Vocabulary.fromMap).toList();
+  }
+
+  Future<int> getLibraryVocabulariesCount(int libraryId) async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT COUNT(*) as count FROM library_vocab_items WHERE library_id = ?
+    ''', [libraryId]);
+    return result.first['count'] as int;
+  }
+
+  Future<bool> isVocabInLibrary(int libraryId, int vocabId) async {
+    final db = await database;
+    final result = await db.rawQuery('''
+      SELECT 1 FROM library_vocab_items WHERE library_id = ? AND vocab_id = ?
+    ''', [libraryId, vocabId]);
+    return result.isNotEmpty;
+  }
+
+  Future<List<Vocabulary>> getQuizVocabularyFromLibrary({
+    required int libraryId,
+    required int limit,
+  }) async {
+    final db = await database;
+    final maps = await db.rawQuery('''
+      SELECT v.* FROM vocabularies v
+      JOIN library_vocab_items lvi ON v.id = lvi.vocab_id
+      WHERE lvi.library_id = ?
+      ORDER BY RANDOM()
+      LIMIT ?
+    ''', [libraryId, limit]);
+    return maps.map(Vocabulary.fromMap).toList();
+  }
+
+  LibraryList _libraryListFromMap(Map<String, dynamic> map) => LibraryList(
+    id: map['id'] as int,
+    name: map['name'] as String,
+    createdAt: DateTime.parse(map['created_at'] as String),
+    itemCount: map['item_count'] as int,
+  );
 }
