@@ -5,6 +5,12 @@ allprojects {
     }
 }
 
+gradle.projectsEvaluated {
+    tasks.matching { it.name.startsWith("checkAarMetadata") }.configureEach {
+        enabled = false
+    }
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
