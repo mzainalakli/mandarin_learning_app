@@ -61,7 +61,7 @@ jobs:
       - name: Set Release Tag
         id: tag
         run: |
-          echo "TAG_NAME=v1.0.$(date +'\%Y\%m\%d\%H\%M\%S')" >> $GITHUB_ENV
+          echo "TAG_NAME=v1.0.$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
 
       - name: Create Release and Upload Artifacts
         uses: softprops/action-gh-release@v2
