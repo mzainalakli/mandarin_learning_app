@@ -1,13 +1,17 @@
 name: Build Windows
 
 on:
-  workflow_dispatch:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - production
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-windows:
@@ -52,10 +56,16 @@ jobs:
           path: mandarin_app-windows-x64.zip
           retention-days: 7
 
+      - name: Set Release Tag
+        id: tag
+        run: |
+          echo "TAG_NAME=v1.0.$(date +'%Y%m%d%H%M%S')" >> $GITHUB_ENV
+
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG_NAME }}
+          target_commitish: ${{ github.sha }}
           files: mandarin_app-windows-x64.zip
           generate_release_notes: true
         env:
