@@ -8,7 +8,6 @@ import '../../../models/vocabulary.dart';
 import '../../../services/database_helper.dart';
 import '../../../services/tts_service.dart';
 import '../../../widgets/custom_app_bar.dart';
-import '../quiz/quiz_mode_selection_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -525,15 +524,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   void _openQuizFromLibrary(LibraryList library) {
-    final menuController = context.read<MenuAppController>();
-    menuController.selectMenu(1);
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => QuizModeSelectionScreen(
-          initialLibrary: library,
-        ),
-      ),
-    );
+    context.read<MenuAppController>().openQuiz(library: library);
   }
 }
 

@@ -1,23 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/vocabulary.dart';
+import '../../controllers/menu_app_controller.dart';
 import '../../models/library_list.dart';
+import '../../models/vocabulary.dart';
 import '../../providers/quiz_provider.dart';
-import '../../providers/settings_provider.dart';
 import '../../services/database_helper.dart';
 import '../../widgets/custom_app_bar.dart';
-import 'quiz_session_screen.dart';
+import '../../widgets/session_options.dart';
+import 'quiz_launcher.dart';
 
 class QuizModeSelectionScreen extends StatefulWidget {
-  const QuizModeSelectionScreen({
-    super.key,
-    this.initialModule = QuizModule.pinyinToHanziAndMeaning,
-    this.initialLibrary,
-  });
-
-  final QuizModule initialModule;
-  final LibraryList? initialLibrary;
+  const QuizModeSelectionScreen({super.key});
 
   @override
   State<QuizModeSelectionScreen> createState() =>
@@ -25,44 +19,72 @@ class QuizModeSelectionScreen extends StatefulWidget {
 }
 
 class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
-  int _sessionSize = 20;
-  String _selectedCategory = 'All';
-  int? _selectedLibraryId;
+  static const _libraryPrefix = 'library:';
+  static const _modules = [
+    (QuizModule.pinyinToHanziAndMeaning, 'Pinyin → Hanzi + Meaning'),
+    (QuizModule.hanziToPinyinAndMeaning, 'Hanzi → Pinyin + Meaning'),
+    (QuizModule.hanziToMeaning, 'Hanzi → Meaning'),
+  ];
+
+  late QuizModule _module;
+  String _selection = 'All';
   List<LibraryList> _libraries = [];
+  bool _starting = false;
 
   @override
   void initState() {
     super.initState();
+    final menu = context.read<MenuAppController>();
+    _module = menu.quizModule;
+    final library = menu.quizLibrary;
+    if (library != null) _selection = '$_libraryPrefix${library.id}';
     _loadLibraries();
-    if (widget.initialLibrary != null) {
-      _selectedLibraryId = widget.initialLibrary!.id;
-      _selectedCategory = 'Library: ${widget.initialLibrary!.name}';
-    } else {
-      setState(() => _selectedCategory = 'All');
-    }
   }
 
   Future<void> _loadLibraries() async {
     try {
       final libs = await DatabaseHelper.instance.getAllLibraries();
-      if (mounted) {
-        setState(() {
-          _libraries = libs;
-        });
-      }
+      if (mounted) setState(() => _libraries = libs);
     } catch (_) {
-      // Ignore error, _libraries remains empty
+      // Keep the list empty; the quiz still works with TOCFL categories.
+    }
+  }
+
+  int? get _libraryId => _selection.startsWith(_libraryPrefix)
+      ? int.tryParse(_selection.substring(_libraryPrefix.length))
+      : null;
+
+  Future<void> _start(QuizAnswerMode answerMode) async {
+    if (_starting) return;
+    setState(() => _starting = true);
+    try {
+      await launchQuiz(
+        context,
+        module: _module,
+        answerMode: answerMode,
+        category: _selection,
+        libraryId: _libraryId,
+      );
+    } finally {
+      if (mounted) setState(() => _starting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<SettingsProvider>();
-    final categories = Vocabulary.allCategoriesForFilter;
-    final libraryOptions = _libraries
-        .map((l) => 'Library: ${l.name}')
-        .toList();
-    final allCategories = [...categories, ...libraryOptions];
+    final items = <DropdownMenuItem<String>>[
+      for (final category in Vocabulary.allCategoriesForFilter)
+        DropdownMenuItem(value: category, child: Text(category)),
+      for (final library in _libraries)
+        DropdownMenuItem(
+          value: '$_libraryPrefix${library.id}',
+          child: Text('Library: ${library.name}'),
+        ),
+    ];
+    final selection = items.any((item) => item.value == _selection)
+        ? _selection
+        : 'All';
+    final colors = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: const CustomAppBar(title: 'Practice Quiz'),
@@ -79,7 +101,7 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Session settings',
+                        'Quiz type',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 10),
@@ -87,54 +109,29 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
                         spacing: 10,
                         runSpacing: 10,
                         children: [
-                          _SessionSizeChip(
-                            label: '10',
-                            selected: _sessionSize == 10,
-                            onSelected: () => setState(() => _sessionSize = 10),
-                          ),
-                          _SessionSizeChip(
-                            label: '20',
-                            selected: _sessionSize == 20,
-                            onSelected: () => setState(() => _sessionSize = 20),
-                          ),
-                          _SessionSizeChip(
-                            label: '50',
-                            selected: _sessionSize == 50,
-                            onSelected: () => setState(() => _sessionSize = 50),
-                          ),
-                          _SessionSizeChip(
-                            label: '100',
-                            selected: _sessionSize == 100,
-                            onSelected: () =>
-                                setState(() => _sessionSize = 100),
-                          ),
+                          for (final (module, label) in _modules)
+                            ChoiceChip(
+                              label: Text(label),
+                              selected: _module == module,
+                              onSelected: (_) =>
+                                  setState(() => _module = module),
+                            ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Number of questions',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 10),
+                      const SessionSizeSelector(),
+                      const SizedBox(height: 18),
                       DropdownButtonFormField<String>(
-                        initialValue: Vocabulary.safeDropdownValue(
-                          _selectedCategory,
-                          allCategories,
-                        ),
-                        items: allCategories
-                            .map(
-                              (c) => DropdownMenuItem(value: c, child: Text(c)),
-                            )
-                            .toList(),
+                        key: ValueKey('$selection/${_libraries.length}'),
+                        initialValue: selection,
+                        items: items,
                         onChanged: (value) {
-                          if (value != null) {
-                            setState(() {
-                              _selectedCategory = value;
-                              // Check if it's a library selection
-                              if (value.startsWith('Library: ')) {
-                                final libName = value.substring('Library: '.length);
-                                final lib = _libraries.firstWhere((l) => l.name == libName);
-                                _selectedLibraryId = lib.id;
-                              } else {
-                                _selectedLibraryId = null;
-                              }
-                            });
-                          }
+                          if (value != null) setState(() => _selection = value);
                         },
                         decoration: const InputDecoration(
                           labelText: 'Category / Library',
@@ -143,195 +140,34 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        'Timer presets',
+                        'Timer',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Off'),
-                            selected: !settings.isTimerEnabled,
-                            onSelected: (_) => settings.setTimerEnabled(false),
-                          ),
-                          ChoiceChip(
-                            label: const Text('10 s'),
-                            selected:
-                                settings.isTimerEnabled &&
-                                settings.timerDurationSeconds == 10,
-                            onSelected: (_) {
-                              settings.setTimerEnabled(true);
-                              settings.setTimerDurationSeconds(10);
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('20 s'),
-                            selected:
-                                settings.isTimerEnabled &&
-                                settings.timerDurationSeconds == 20,
-                            onSelected: (_) {
-                              settings.setTimerEnabled(true);
-                              settings.setTimerDurationSeconds(20);
-                            },
-                          ),
-                          ChoiceChip(
-                            label: const Text('30 s'),
-                            selected:
-                                settings.isTimerEnabled &&
-                                settings.timerDurationSeconds == 30,
-                            onSelected: (_) {
-                              settings.setTimerEnabled(true);
-                              settings.setTimerDurationSeconds(30);
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        settings.isTimerEnabled
-                            ? 'Timer enabled for ${settings.timerDurationSeconds} seconds in multiple choice mode.'
-                            : 'Timer disabled. Multiple choice will wait for your answer.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                      const TimerSelector(),
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 18),
-              _ModeCard(
+              AnswerModeCard(
                 title: 'Multiple Choice Mode',
-                subtitle: 'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
+                subtitle:
+                    'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
                 icon: Icons.check_circle_outline,
-                color: Theme.of(context).colorScheme.primaryContainer,
-                onTap: () => _openQuiz(QuizAnswerMode.multipleChoice),
+                color: colors.primaryContainer,
+                onTap: _starting
+                    ? null
+                    : () => _start(QuizAnswerMode.multipleChoice),
               ),
-              _ModeCard(
+              AnswerModeCard(
                 title: 'Essay / Flashcard Mode',
-                subtitle: 'Think first, reveal the answer card, then self-evaluate with Got It or Review Later.',
+                subtitle:
+                    'Think first, reveal the answer card, then Got It or Review Later — a word you review later comes back among the unseen ones.',
                 icon: Icons.style_outlined,
-                color: Theme.of(context).colorScheme.tertiaryContainer,
-                onTap: () => _openQuiz(QuizAnswerMode.essay),
+                color: colors.tertiaryContainer,
+                onTap: _starting ? null : () => _start(QuizAnswerMode.essay),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _openQuiz(QuizAnswerMode answerMode) async {
-    final quizProvider = context.read<QuizProvider>();
-    if (_selectedLibraryId != null) {
-      await quizProvider.startQuizFromLibrary(
-        libraryId: _selectedLibraryId!,
-        module: widget.initialModule,
-        answerMode: answerMode,
-        sessionSize: _sessionSize,
-      );
-    } else {
-      await quizProvider.startQuiz(
-        category: _selectedCategory,
-        module: widget.initialModule,
-        answerMode: answerMode,
-        sessionSize: _sessionSize,
-      );
-    }
-
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => QuizSessionScreen(
-          module: widget.initialModule,
-          answerMode: answerMode,
-          category: _selectedCategory,
-          sessionSize: _sessionSize,
-        ),
-      ),
-    );
-  }
-}
-
-class _SessionSizeChip extends StatelessWidget {
-  const _SessionSizeChip({
-    required this.label,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text('$label words'),
-      selected: selected,
-      onSelected: (_) => onSelected(),
-    );
-  }
-}
-
-class _ModeCard extends StatelessWidget {
-  const _ModeCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: color,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(28),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface
-                      .withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Icon(icon, size: 36),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              const Icon(Icons.arrow_forward),
             ],
           ),
         ),

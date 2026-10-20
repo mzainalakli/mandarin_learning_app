@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../models/vocab_stats.dart';
 import '../models/vocabulary.dart';
 import '../models/library_list.dart';
 import '../utils/pinyin_zhuyin.dart';
@@ -374,6 +375,31 @@ class DatabaseHelper {
       orderBy: 'hanzi',
     );
     return maps.map(Vocabulary.fromMap).toList();
+  }
+
+  Future<VocabStats> getVocabStats() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT category,
+             COUNT(*) AS words,
+             COALESCE(SUM(reviewCount), 0) AS reviews,
+             COALESCE(SUM(correctCount), 0) AS correct
+      FROM vocabularies
+      GROUP BY category
+    ''');
+    final counts = <String, int>{};
+    var reviews = 0;
+    var correct = 0;
+    for (final row in rows) {
+      counts[row['category'] as String] = row['words'] as int;
+      reviews += row['reviews'] as int;
+      correct += row['correct'] as int;
+    }
+    return VocabStats(
+      countsByCategory: counts,
+      totalReviews: reviews,
+      totalCorrect: correct,
+    );
   }
 
   Future<List<String>> getDistinctCategories() async {

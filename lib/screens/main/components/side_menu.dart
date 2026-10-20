@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../controllers/menu_app_controller.dart';
-import '../../../core/responsive.dart';
 
 class SideMenu extends StatefulWidget {
   const SideMenu({super.key});
@@ -81,10 +80,7 @@ class _SideMenuState extends State<SideMenu> {
                   return _MenuTile(
                     item: item,
                     isSelected: isSelected,
-                    onTap: () {
-                      menuController.selectMenu(item.index);
-                      _handleNavigation(context);
-                    },
+                    onTap: () => menuController.selectMenu(item.index),
                   );
                 },
               ),
@@ -182,11 +178,6 @@ class _SideMenuState extends State<SideMenu> {
     );
   }
 
-  void _handleNavigation(BuildContext context) {
-    if (!Responsive.isDesktop(context)) {
-      Navigator.of(context).pop();
-    }
-  }
 }
 
 class _MenuItem {
