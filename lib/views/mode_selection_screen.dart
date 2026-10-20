@@ -100,8 +100,9 @@ class _ModeSelectionScreenState extends State<ModeSelectionScreen> {
                             )
                             .toList(),
                         onChanged: (value) {
-                          if (value != null)
+                          if (value != null) {
                             setState(() => _selectedCategory = value);
+                          }
                         },
                         decoration: const InputDecoration(
                           labelText: 'TOCFL Category',

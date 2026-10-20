@@ -85,7 +85,7 @@ Future<void> main(List<String> args) async {
       ]);
     }
 
-    stmt.dispose();
+    stmt.close();
     db.execute('COMMIT');
 
     final count = db.select('SELECT COUNT(*) AS total FROM vocabularies').first['total'];
@@ -100,7 +100,7 @@ Future<void> main(List<String> args) async {
     stderr.writeln('Import failed: $error');
     exitCode = 1;
   } finally {
-    db.dispose();
+    db.close();
   }
 }
 

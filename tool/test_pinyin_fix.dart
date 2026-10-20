@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:mandarin_app/utils/pinyin_zhuyin.dart';
 
 void main() {
@@ -28,20 +30,20 @@ void main() {
     ('   ', ''),
   ];
 
-  print('Testing pinyinToZhuyin...');
+  stdout.writeln('Testing pinyinToZhuyin...');
   int passed = 0;
   int failed = 0;
 
   for (final (input, expected) in testCases) {
     final result = pinyinToZhuyin(input);
     if (result == expected) {
-      print('✓ "$input" => "$result"');
+      stdout.writeln('✓ "$input" => "$result"');
       passed++;
     } else {
-      print('✗ "$input" => "$result" (expected: "$expected")');
+      stdout.writeln('✗ "$input" => "$result" (expected: "$expected")');
       failed++;
     }
   }
 
-  print('\nResults: $passed passed, $failed failed');
+  stdout.writeln('\nResults: $passed passed, $failed failed');
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 
@@ -10,7 +12,7 @@ Future<void> main() async {
   final db = await databaseFactory.openDatabase(path);
 
   await db.execute('DELETE FROM vocabularies');
-  print('All vocabulary data deleted.');
+  stdout.writeln('All vocabulary data deleted.');
 
   await db.close();
 }

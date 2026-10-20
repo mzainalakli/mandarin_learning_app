@@ -207,14 +207,14 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
                 subtitle: 'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
                 icon: Icons.check_circle_outline,
                 color: Theme.of(context).colorScheme.primaryContainer,
-                onTap: () => _openQuiz(context, QuizAnswerMode.multipleChoice),
+                onTap: () => _openQuiz(QuizAnswerMode.multipleChoice),
               ),
               _ModeCard(
                 title: 'Essay / Flashcard Mode',
                 subtitle: 'Think first, reveal the answer card, then self-evaluate with Got It or Review Later.',
                 icon: Icons.style_outlined,
                 color: Theme.of(context).colorScheme.tertiaryContainer,
-                onTap: () => _openQuiz(context, QuizAnswerMode.essay),
+                onTap: () => _openQuiz(QuizAnswerMode.essay),
               ),
             ],
           ),
@@ -223,9 +223,7 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
     );
   }
 
-  void _openQuiz(BuildContext context, QuizAnswerMode answerMode) async {
-    if (!mounted) return;
-
+  void _openQuiz(QuizAnswerMode answerMode) async {
     final quizProvider = context.read<QuizProvider>();
     if (_selectedLibraryId != null) {
       await quizProvider.startQuizFromLibrary(

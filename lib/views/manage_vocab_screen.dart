@@ -202,10 +202,11 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
           'Choose a readable XLSX, CSV, or JSON file.',
         ),
       };
-      if (mounted)
+      if (mounted) {
         _showMessage(
           'Imported ${importResult.importedCount} rows; skipped ${importResult.skippedCount} invalid rows.',
         );
+      }
     } on FormatException catch (error) {
       if (mounted) _showMessage(error.message);
     } catch (_) {
@@ -632,8 +633,9 @@ class _ManageVocabScreenState extends State<ManageVocabScreen> {
       await DatabaseHelper.instance.resetAndReloadEnglishVocabulary();
       if (!mounted) return;
       await context.read<VocabProvider>().loadVocabs();
-      if (mounted)
+      if (mounted) {
         _showMessage('Vocabulary reset and reloaded with English meanings.');
+      }
     } catch (_) {
       if (mounted) _showMessage('Could not reset vocabulary.');
     } finally {
