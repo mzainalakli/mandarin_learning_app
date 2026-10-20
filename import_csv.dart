@@ -16,7 +16,6 @@ void main() async {
   final lines = csvContent.split('\n');
   if (lines.isEmpty) return;
 
-  final headers = lines.first.split(',');
   final dataLines = lines.skip(1).where((l) => l.trim().isNotEmpty).toList();
 
   final batch = db.batch();
@@ -26,11 +25,9 @@ void main() async {
     final fields = _parseCsvLine(line);
     if (fields.length < 8) continue;
 
-    final id = fields[0];
     final traditional = fields[1];
     final simplified = fields[2];
     final pinyin = fields[3];
-    final pos = fields[4];
     final meaning = fields[5];
     final category = fields[6];
     final subcategory = fields[7];
@@ -52,12 +49,12 @@ void main() async {
     count++;
     if (count % 100 == 0) {
       await batch.commit(noResult: true);
-      print('Inserted $count rows...');
+      stdout.writeln('Inserted $count rows...');
     }
   }
 
   await batch.commit(noResult: true);
-  print('Import complete. Total rows: $count');
+  stdout.writeln('Import complete. Total rows: $count');
   await db.close();
 }
 

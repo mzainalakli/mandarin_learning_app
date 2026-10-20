@@ -255,8 +255,9 @@ class ExcelService {
 
     // HSK mapping
     if (cat.contains('hsk')) {
-      if (cat.contains('1') || cat.contains('2') || cat.contains('3'))
+      if (cat.contains('1') || cat.contains('2') || cat.contains('3')) {
         return 'TOCFL A1';
+      }
       if (cat.contains('4') || cat.contains('5')) return 'TOCFL A2';
       if (cat.contains('6')) return 'TOCFL B1';
     }

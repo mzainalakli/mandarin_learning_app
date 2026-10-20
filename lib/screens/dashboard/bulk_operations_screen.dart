@@ -112,10 +112,11 @@ class _BulkOperationsScreenState extends State<BulkOperationsScreen> {
           'Choose a readable XLSX, CSV, or JSON file.',
         ),
       };
-      if (mounted)
+      if (mounted) {
         _showMessage(
           'Imported ${importResult.importedCount} rows; skipped ${importResult.skippedCount} invalid rows.',
         );
+      }
     } on FormatException catch (error) {
       if (mounted) _showMessage(error.message);
     } catch (_) {
