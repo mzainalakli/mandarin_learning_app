@@ -16,14 +16,10 @@ class QuizSessionScreen extends StatefulWidget {
     super.key,
     required this.module,
     required this.answerMode,
-    required this.category,
-    required this.sessionSize,
   });
 
   final QuizModule module;
   final QuizAnswerMode answerMode;
-  final String category;
-  final int sessionSize;
 
   @override
   State<QuizSessionScreen> createState() => _QuizSessionScreenState();
@@ -49,7 +45,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
   }
 
   Future<void> _init() async {
-    // Quiz is already started in QuizModeSelectionScreen, just start timer
+    // The deck is loaded by launchQuiz() before this page is pushed.
     _startTimer();
     setState(() => _loaded = true);
   }
@@ -64,7 +60,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
       if (!mounted) return timer.cancel();
       if (_remainingSeconds <= 1) {
         timer.cancel();
-        if (context.read<SettingsProvider>().isMultipleChoice) {
+        if (widget.answerMode == QuizAnswerMode.multipleChoice) {
           await context.read<QuizProvider>().markTimedOut();
           _markFeedback(false);
           _autoAdvance();
@@ -121,10 +117,19 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
     final quiz = context.read<QuizProvider>();
     if (!quiz.revealed || quiz.answered) return;
     _timer?.cancel();
-    await quiz.selfEvaluate(correct);
+    if (correct) {
+      await quiz.selfEvaluate(true);
+    } else {
+      await quiz.reviewLater();
+    }
     if (!mounted) return;
     _markFeedback(correct);
     _autoAdvance();
+  }
+
+  void _finish() {
+    _timer?.cancel();
+    context.read<QuizProvider>().finishSession();
   }
 
   Future<void> _leave() async {
@@ -133,7 +138,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Leave quiz?'),
         content: const Text(
-          'Answered words are saved. Unanswered session progress will end.',
+          'Answered words are saved. The rest of this session will end.',
         ),
         actions: [
           TextButton(
@@ -159,7 +164,12 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
     final settings = context.watch<SettingsProvider>();
     final bp = Responsive.getBreakpoint(context);
     final isMobile = bp == AppBreakpoint.mobile;
-    final needsFourWords = settings.isMultipleChoice && quiz.totalCount < 4;
+    final needsFourWords =
+        widget.answerMode == QuizAnswerMode.multipleChoice &&
+        !quiz.quizFinished &&
+        quiz.totalCount < 4;
+    final running = quiz.hasCurrent && !quiz.quizFinished;
+    final canFinish = running && quiz.isEndless;
 
     return PopScope(
       canPop: false,
@@ -169,12 +179,22 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
           title: _getAppBarTitle(quiz, widget.module),
           actions: [
             if (!isMobile) ...[
-              TextButton.icon(
-                onPressed: quiz.answered ? null : _pass,
-                icon: const Icon(Icons.skip_next),
-                label: const Text('Pass'),
-              ),
-              const SizedBox(width: 8),
+              if (canFinish) ...[
+                TextButton.icon(
+                  onPressed: _finish,
+                  icon: const Icon(Icons.flag_outlined),
+                  label: const Text('Finish'),
+                ),
+                const SizedBox(width: 8),
+              ],
+              if (running) ...[
+                TextButton.icon(
+                  onPressed: quiz.answered ? null : _pass,
+                  icon: const Icon(Icons.skip_next),
+                  label: const Text('Pass'),
+                ),
+                const SizedBox(width: 8),
+              ],
               TextButton.icon(
                 onPressed: _leave,
                 icon: const Icon(Icons.logout),
@@ -183,16 +203,30 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
               const SizedBox(width: 12),
             ] else ...[
               PopupMenuButton<String>(
-                onSelected: (value) => value == 'pass' ? _pass() : _leave(),
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
-                    value: 'pass',
-                    child: ListTile(
-                      leading: Icon(Icons.skip_next),
-                      title: Text('Pass'),
+                onSelected: (value) => switch (value) {
+                  'finish' => _finish(),
+                  'pass' => _pass(),
+                  _ => _leave(),
+                },
+                itemBuilder: (context) => [
+                  if (canFinish)
+                    const PopupMenuItem(
+                      value: 'finish',
+                      child: ListTile(
+                        leading: Icon(Icons.flag_outlined),
+                        title: Text('Finish'),
+                      ),
                     ),
-                  ),
-                  PopupMenuItem(
+                  if (running)
+                    PopupMenuItem(
+                      value: 'pass',
+                      enabled: !quiz.answered,
+                      child: const ListTile(
+                        leading: Icon(Icons.skip_next),
+                        title: Text('Pass'),
+                      ),
+                    ),
+                  const PopupMenuItem(
                     value: 'leave',
                     child: ListTile(
                       leading: Icon(Icons.logout),
@@ -211,17 +245,17 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
             final horizontalPadding = isMobile ? 16.0 : 24.0;
             final content = !_loaded
                 ? const Center(child: CircularProgressIndicator())
+                : quiz.quizFinished && quiz.totalCount > 0
+                ? _FinishedCard(
+                    quiz: quiz,
+                    onRestart: () => Navigator.pop(context),
+                  )
                 : needsFourWords
                 ? _buildEmptyState(
                     'Multiple choice needs at least 4 vocabulary words.',
                   )
                 : !quiz.hasCurrent
                 ? _buildEmptyState('Add vocabulary before starting a quiz.')
-                : quiz.quizFinished
-                ? _FinishedCard(
-                    quiz: quiz,
-                    onRestart: () => Navigator.pop(context),
-                  )
                 : _QuestionView(
                     quiz: quiz,
                     settings: settings,
@@ -311,12 +345,17 @@ class _FinishedCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Correct ${quiz.score} of ${quiz.completedCount}.',
+                'Correct ${quiz.score} of ${quiz.completedCount} on the first try.',
+                textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
               Text(
-                'You reviewed ${quiz.totalCount} words in total.',
+                quiz.isEndless
+                    ? 'You answered ${quiz.completedCount} words '
+                          '(${quiz.round} ${quiz.round == 1 ? 'round' : 'rounds'}).'
+                    : 'You reviewed ${quiz.totalCount} words in total.',
+                textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 24),
@@ -486,12 +525,14 @@ class _ProgressStrip extends StatelessWidget {
             Row(
               children: [
                 Text(
-                  'Session progress',
+                  quiz.isEndless ? 'No-limit session' : 'Session progress',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const Spacer(),
                 Text(
-                  '${quiz.completedCount}/${quiz.totalCount}',
+                  quiz.isEndless
+                      ? '${quiz.completedCount} answered'
+                      : '${quiz.completedCount}/${quiz.totalCount}',
                   style: Theme.of(context).textTheme.titleMedium
                       ?.copyWith(color: colors.primary),
                 ),
@@ -508,18 +549,22 @@ class _ProgressStrip extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
+                if (quiz.isEndless)
+                  _SessionPill(label: 'Round', value: '${quiz.round}'),
                 _SessionPill(
-                  label: 'Main deck',
+                  label: 'Remaining',
                   value: '${quiz.remainingCount}',
                 ),
-                _SessionPill(
-                  label: 'Review later',
-                  value: '${quiz.reviewLaterCount}',
-                ),
-                _SessionPill(
-                  label: 'Answered',
-                  value: '${quiz.completedCount}',
-                ),
+                if (quiz.reviewLaterCount > 0)
+                  _SessionPill(
+                    label: 'Passed',
+                    value: '${quiz.reviewLaterCount}',
+                  ),
+                if (!quiz.isEndless)
+                  _SessionPill(
+                    label: 'Answered',
+                    value: '${quiz.completedCount}',
+                  ),
                 if (settings.isTimerEnabled && remainingSeconds != null)
                   _SessionPill(label: 'Timer', value: '${remainingSeconds}s'),
               ],
@@ -584,10 +629,15 @@ class _PromptCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final maxWidth = MediaQuery.sizeOf(context).width;
-    final isHanziLed = module != QuizModule.pinyinToHanziAndMeaning;
-    final promptText = isHanziLed
-        ? current.displayHanzi
-        : current.displayPronunciation;
+    final isHanziLed =
+        module != QuizModule.pinyinToHanziAndMeaning &&
+        module != QuizModule.hanziByZhuyin;
+    final promptText = switch (module) {
+      QuizModule.pinyinToHanziAndMeaning => current.displayPronunciation,
+      QuizModule.hanziByZhuyin =>
+        current.zhuyin ?? current.displayPronunciation,
+      _ => current.displayHanzi,
+    };
     final compact = maxWidth < 560;
     final wide = maxWidth >= 900;
     final textSize = isHanziLed

@@ -1,32 +1,22 @@
 # Known Issues
 
-Findings from a review of the source code. Each item states the symptom, the cause with a file reference, and a suggested fix. **How they were verified:** by reading the code and call graph, by running `flutter analyze` and `flutter test` (both clean), and, for the Pinyin converter and file-picker behaviour, by running the converter and inspecting the package source. The UI was not exercised interactively, so on-screen wording of a symptom is inferred from the code.
+Findings from a review of the source code. Items that have since been fixed are removed from this list. Each item states the symptom, the cause with a file reference, and a suggested fix. **How they were verified:** by reading the code and call graph, by running `flutter analyze` and `flutter test` (both clean), and, for the Pinyin converter and file-picker behaviour, by running the converter and inspecting the package source. The UI was not exercised interactively, so on-screen wording of a symptom is inferred from the code.
 
 ## Functional bugs
 
-### Bopomofo Training does not start a new deck
+### Settings answer mode does not affect sessions
 
-- **Symptom:** starting a session from *Bopomofo Training* does not build a deck from your chosen session size and TOCFL level. If no quiz has run yet in this launch, the session screen shows "Add vocabulary before starting a quiz."; if one has, it shows that earlier session's state.
-- **Cause:** [`bopomofo_training_screen.dart`](../lib/screens/quiz/bopomofo_training_screen.dart) `_openQuiz` pushes `QuizSessionScreen` directly. `QuizProvider.startQuiz` is only called from `QuizModeSelectionScreen._openQuiz` (and the unused legacy `quiz_screen.dart`), and `QuizSessionScreen` assumes the quiz was already started. The selected category and size are passed to the screen but never used.
-- **Fix:** make `_openQuiz` `await context.read<QuizProvider>().startQuiz(category: …, module: _selectedModule, answerMode: …, sessionSize: …)` before pushing, as the Practice Quiz screen does.
+- **Symptom:** the *Answer mode* switch in **Settings** does nothing visible. A session's mode is the card you tap on Practice Quiz or Bopomofo Training.
+- **Cause:** `SettingsProvider.isMultipleChoice` is stored and shown but no longer read by the quiz (the session screen now uses its own answer mode). 
+- **Fix:** either remove the switch, or use it to pre-highlight a default card on the quiz screens.
 
-### Zhuyin prompt modes show Hanzi as the prompt
+### No-limit sessions replay a pool of at most 1,000 words
 
-- **Symptom:** in *Zhuyin → Hanzi* (`hanziByZhuyin`) the large prompt shows the Hanzi even though the instruction reads "Read the Zhuyin and recall Hanzi", and the options are Hanzi too.
-- **Cause:** `_PromptCard` in [`quiz_session_screen.dart`](../lib/screens/quiz/quiz_session_screen.dart) treats every module except `pinyinToHanziAndMeaning` as Hanzi-led, and `QuizProvider.questionText` returns the Hanzi for `hanziByZhuyin`.
-- **Fix:** make the prompt for `hanziByZhuyin` the word's Zhuyin (fall back to Pinyin when empty) and show Zhuyin-led styling.
+A no-limit session loads up to `QuizProvider.endlessPoolSize` (1,000) random words and plays them in rounds. With `All` selected (14,868 words) you will see the same 1,000 words repeat rather than the whole vocabulary; start a new session to draw a fresh pool.
 
-### Timeout and 4-word check use the global answer-mode setting
+### Possible layout overflow on narrow windows
 
-- **Symptom:** the answer mode you tap on a quiz configuration screen can disagree with the *Settings* switch. With Settings on "Multiple choice" (the default), a timer expiry in a Flashcard session marks the word as timed out instead of just revealing it; and a Flashcard session with fewer than 4 words is rejected with the "needs at least 4 words" message.
-- **Cause:** `_startTimer` and `build` in `quiz_session_screen.dart` read `SettingsProvider.isMultipleChoice` rather than the session's `widget.answerMode` / `QuizProvider.answerMode`.
-- **Fix:** use the session's answer mode in both places.
-
-### Dashboard review statistics are not real
-
-- **Symptom:** the hero card's **Total reviews** equals the word count, **Review accuracy** always shows 0 %, and the **TOCFL A1** metric chip shows `Instance of 'Future<int>'` instead of a number. **Deck ready: Yes** is a constant.
-- **Cause:** [`dashboard_screen.dart`](../lib/screens/dashboard/dashboard_screen.dart) `_getTotalReviews()` returns the cumulative word count, `_getTotalCorrect()` returns `0`, and `_HeroCopy` interpolates a `Future` directly into a string.
-- **Fix:** add a database query that sums `reviewCount` and `correctCount`; load the A1 count in `_loadStats` and pass it down as an `int`.
+In widget tests with the placeholder test font, several Dashboard cards (TOCFL band cards, module cards) and the top bar at 400 px width report `RenderFlex overflowed` errors. Real fonts are narrower, so this may not show on a device, but it has not been checked on one. If you see yellow/black overflow stripes on a phone, start with `_TOCFLBandCard`, `_ModuleBentoCard` in [`dashboard_screen.dart`](../lib/screens/dashboard/dashboard_screen.dart) and the `Row` in [`header.dart`](../lib/screens/main/components/header.dart).
 
 ### Export writes only the currently loaded page
 
@@ -96,8 +86,7 @@ See [Pinyin → Zhuyin converter](pinyin-zhuyin.md).
 ## Code health
 
 - `lib/views/home_screen.dart`, `lib/views/mode_selection_screen.dart`, `lib/views/quiz_screen.dart` and `lib/services/csv_import_service.dart` are unreferenced legacy code. See [Architecture](architecture.md#legacy--unused-files).
-- `QuizSessionScreen` accepts `category` and `sessionSize` parameters it never reads.
-- The only automated tests are 7 unit tests; there are none for the database layer, migrations, JSON/XLSX import, the converter or any screen.
+- There are 27 automated tests (session logic, navigation behaviour, import/export, models). None cover the database layer, migrations, JSON/XLSX import, the converter or full screens against a real database.
 - The `responsive_ui_template/` folder at the repository root is an unrelated Flutter project; it is excluded from analysis and can be deleted.
 
 ## Documentation drift

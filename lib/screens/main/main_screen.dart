@@ -20,103 +20,66 @@ class MainScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final menuController = context.watch<MenuAppController>();
     final isDesktop = Responsive.isDesktop(context);
+    final selectedIndex = menuController.selectedIndex;
 
-    return Scaffold(
-      key: menuController.scaffoldKey,
-      drawer: isDesktop ? null : const SideMenu(),
-      body: SafeArea(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (isDesktop) Expanded(flex: 1, child: SideMenu()),
-            Expanded(
-              flex: 5,
-              child: Column(
-                children: [
-                  Header(
-                    title: _getScreenTitle(menuController.selectedIndex),
-                    onMenuTap: () => Scaffold.of(context).openDrawer(),
-                  ),
-                  Expanded(
-                    child: KeyedSubtree(
-                      key: ValueKey<int>(menuController.selectedIndex),
-                      child: IndexedStack(
-                        index: menuController.selectedIndex,
-                        children: [
-                          _buildTab(
-                            0,
-                            menuController.selectedIndex,
-                            const DashboardScreen(),
-                          ),
-                          _buildTab(
-                            1,
-                            menuController.selectedIndex,
-                            const QuizModeSelectionScreen(),
-                          ),
-                          _buildTab(
-                            2,
-                            menuController.selectedIndex,
-                            const BopomofoTrainingScreen(),
-                          ),
-                          _buildTab(
-                            3,
-                            menuController.selectedIndex,
-                            const LibraryScreen(),
-                          ),
-                          _buildTab(
-                            4,
-                            menuController.selectedIndex,
-                            const ManageVocabScreen(),
-                          ),
-                          _buildTab(
-                            5,
-                            menuController.selectedIndex,
-                            const BulkOperationsScreen(),
-                          ),
-                          _buildTab(
-                            6,
-                            menuController.selectedIndex,
-                            const SettingsScreen(),
-                          ),
-                        ],
+    // System back from any section returns to the Dashboard first; only from
+    // the Dashboard does it leave the app.
+    return PopScope(
+      canPop: selectedIndex == MenuAppController.dashboardIndex,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) menuController.navigateToDashboard();
+      },
+      child: Scaffold(
+        key: menuController.scaffoldKey,
+        drawer: isDesktop ? null : const SideMenu(),
+        body: SafeArea(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isDesktop) const Expanded(flex: 1, child: SideMenu()),
+              Expanded(
+                flex: 5,
+                child: Column(
+                  children: [
+                    Header(
+                      title: _screenTitle(selectedIndex),
+                      onMenuTap: menuController.openDrawer,
+                    ),
+                    // Only the active section is built. Each switch builds
+                    // one screen instead of keeping all seven alive.
+                    Expanded(
+                      child: KeyedSubtree(
+                        key: ValueKey<int>(selectedIndex),
+                        child: _screenFor(selectedIndex),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  String _getScreenTitle(int index) {
-    switch (index) {
-      case 0:
-        return 'Dashboard';
-      case 1:
-        return 'Practice Quiz';
-      case 2:
-        return 'Bopomofo Training';
-      case 3:
-        return 'My Library';
-      case 4:
-        return 'Dictionary';
-      case 5:
-        return 'Import / Export';
-      case 6:
-        return 'Settings';
-      default:
-        return 'Dashboard';
-    }
-  }
+  static Widget _screenFor(int index) => switch (index) {
+    MenuAppController.quizIndex => const QuizModeSelectionScreen(),
+    MenuAppController.bopomofoIndex => const BopomofoTrainingScreen(),
+    MenuAppController.libraryIndex => const LibraryScreen(),
+    MenuAppController.dictionaryIndex => const ManageVocabScreen(),
+    MenuAppController.importExportIndex => const BulkOperationsScreen(),
+    MenuAppController.settingsIndex => const SettingsScreen(),
+    _ => const DashboardScreen(),
+  };
 
-  Widget _buildTab(int tabIndex, int currentIndex, Widget child) {
-    final bool isActive = tabIndex == currentIndex;
-    return TickerMode(
-      enabled: isActive,
-      child: ExcludeSemantics(excluding: !isActive, child: child),
-    );
-  }
+  static String _screenTitle(int index) => switch (index) {
+    MenuAppController.quizIndex => 'Practice Quiz',
+    MenuAppController.bopomofoIndex => 'Bopomofo Training',
+    MenuAppController.libraryIndex => 'My Library',
+    MenuAppController.dictionaryIndex => 'Dictionary',
+    MenuAppController.importExportIndex => 'Import / Export',
+    MenuAppController.settingsIndex => 'Settings',
+    _ => 'Dashboard',
+  };
 }

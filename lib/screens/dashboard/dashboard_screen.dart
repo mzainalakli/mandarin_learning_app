@@ -3,10 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../controllers/menu_app_controller.dart';
 import '../../core/responsive.dart';
+import '../../models/vocab_stats.dart';
 import '../../models/vocabulary.dart';
 import '../../providers/quiz_provider.dart';
-import '../../providers/vocab_provider.dart';
-import '../../screens/quiz/quiz_mode_selection_screen.dart';
+import '../../services/database_helper.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -16,10 +16,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int _totalWords = 0;
-  int _totalReviews = 0;
-  int _totalCorrect = 0;
-  Map<String, int> _tocflCounts = {};
+  VocabStats _stats = const VocabStats.empty();
 
   @override
   void initState() {
@@ -28,39 +25,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadStats() async {
-    final provider = context.read<VocabProvider>();
-    final totalWords = await provider.getVocabulariesCountCumulative('All');
-    final categories = Vocabulary.tocflCategories;
-    final counts = <String, int>{};
-    for (final cat in categories) {
-      counts[cat] = await provider.getVocabulariesCountCumulative(cat);
+    try {
+      final stats = await DatabaseHelper.instance.getVocabStats();
+      if (mounted) setState(() => _stats = stats);
+    } catch (_) {
+      // Keep the zeroed stats; the dashboard shortcuts still work.
     }
-    final totalReviewsResult = await _getTotalReviews();
-    final totalCorrectResult = await _getTotalCorrect();
-
-    if (mounted) {
-      setState(() {
-        _totalWords = totalWords;
-        _tocflCounts = counts;
-        _totalReviews = totalReviewsResult;
-        _totalCorrect = totalCorrectResult;
-      });
-    }
-  }
-
-  Future<int> _getTotalReviews() async {
-    final db = context.read<VocabProvider>();
-    return db.getVocabulariesCountCumulative('All');
-  }
-
-  Future<int> _getTotalCorrect() async {
-    return 0;
   }
 
   @override
   Widget build(BuildContext context) {
     final menuController = context.read<MenuAppController>();
-    final accuracy = _totalReviews == 0 ? 0.0 : _totalCorrect / _totalReviews;
+    final tocflCounts = {
+      for (final band in Vocabulary.tocflCategories)
+        band: _stats.cumulativeCount(band),
+    };
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -68,17 +47,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _HeroCard(
-            totalWords: _totalWords,
-            totalReviews: _totalReviews,
-            accuracy: accuracy,
-            onStartQuiz: () => menuController.selectMenu(1),
-            onManageWords: () => menuController.selectMenu(4),
-            onMyLibrary: () => menuController.selectMenu(3),
-            onImportExport: () => menuController.selectMenu(5),
-            onSettings: () => menuController.selectMenu(6),
+            totalWords: _stats.totalWords,
+            firstBandWords: tocflCounts[Vocabulary.tocflCategories.first] ?? 0,
+            totalReviews: _stats.totalReviews,
+            accuracy: _stats.accuracy,
+            onStartQuiz: menuController.openQuiz,
+            onManageWords: () =>
+                menuController.selectMenu(MenuAppController.dictionaryIndex),
+            onMyLibrary: () =>
+                menuController.selectMenu(MenuAppController.libraryIndex),
+            onImportExport: () =>
+                menuController.selectMenu(MenuAppController.importExportIndex),
+            onSettings: () =>
+                menuController.selectMenu(MenuAppController.settingsIndex),
           ),
           const SizedBox(height: 24),
-          _TOCFLProgressGrid(tocflCounts: _tocflCounts),
+          _TOCFLProgressGrid(tocflCounts: tocflCounts),
           const SizedBox(height: 24),
           _PracticeModuleCards(),
         ],
@@ -90,6 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 class _HeroCard extends StatelessWidget {
   const _HeroCard({
     required this.totalWords,
+    required this.firstBandWords,
     required this.totalReviews,
     required this.accuracy,
     required this.onStartQuiz,
@@ -100,6 +85,7 @@ class _HeroCard extends StatelessWidget {
   });
 
   final int totalWords;
+  final int firstBandWords;
   final int totalReviews;
   final double accuracy;
   final VoidCallback onStartQuiz;
@@ -141,7 +127,10 @@ class _HeroCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _HeroCopy(wordCount: totalWords),
+                    _HeroCopy(
+                      wordCount: totalWords,
+                      firstBandWords: firstBandWords,
+                    ),
                     const SizedBox(height: 20),
                     _HeroStats(
                       wordCount: totalWords,
@@ -154,7 +143,10 @@ class _HeroCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _HeroCopy(wordCount: totalWords)),
+                    Expanded(child: _HeroCopy(
+                      wordCount: totalWords,
+                      firstBandWords: firstBandWords,
+                    )),
                     const SizedBox(width: 24),
                     _HeroStats(
                       wordCount: totalWords,
@@ -228,9 +220,10 @@ class _HeroCard extends StatelessWidget {
 }
 
 class _HeroCopy extends StatelessWidget {
-  const _HeroCopy({required this.wordCount});
+  const _HeroCopy({required this.wordCount, required this.firstBandWords});
 
   final int wordCount;
+  final int firstBandWords;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -254,11 +247,13 @@ class _HeroCopy extends StatelessWidget {
         children: [
           _HeroMetric(label: 'Words', value: '$wordCount'),
           _HeroMetric(
-            label: 'TOCFL A1',
-            value:
-                '${context.read<VocabProvider>().getVocabulariesCountCumulative("TOCFL A1")}',
+            label: Vocabulary.tocflCategories.first,
+            value: '$firstBandWords',
           ),
-          _HeroMetric(label: 'Deck ready', value: 'Yes'),
+          _HeroMetric(
+            label: 'Deck ready',
+            value: wordCount > 0 ? 'Yes' : 'No',
+          ),
         ],
       ),
     ],
@@ -569,16 +564,9 @@ class _PracticeModuleCards extends StatelessWidget {
               subtitle: 'Hear the sound, recall the characters plus meaning.',
               icon: Icons.record_voice_over_outlined,
               colors: const [Color(0xFF9D1F3C), Color(0xFFC86D4B)],
-              onTap: () {
-                menuController.selectMenu(1);
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => QuizModeSelectionScreen(
-                      initialModule: QuizModule.pinyinToHanziAndMeaning,
-                    ),
-                  ),
-                );
-              },
+              onTap: () => menuController.openQuiz(
+                module: QuizModule.pinyinToHanziAndMeaning,
+              ),
             ),
             _ModuleBentoCard(
               index: '02',
@@ -586,16 +574,9 @@ class _PracticeModuleCards extends StatelessWidget {
               subtitle: 'Read 正體字 first, then recall pronunciation and meaning from memory.',
               icon: Icons.translate_outlined,
               colors: const [Color(0xFF087B68), Color(0xFF3CA79B)],
-              onTap: () {
-                menuController.selectMenu(1);
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => QuizModeSelectionScreen(
-                      initialModule: QuizModule.hanziToPinyinAndMeaning,
-                    ),
-                  ),
-                );
-              },
+              onTap: () => menuController.openQuiz(
+                module: QuizModule.hanziToPinyinAndMeaning,
+              ),
             ),
             _ModuleBentoCard(
               index: '03',
@@ -603,16 +584,8 @@ class _PracticeModuleCards extends StatelessWidget {
               subtitle: 'Pure recall mode for fast vocabulary recognition and meaning review.',
               icon: Icons.lightbulb_outline,
               colors: const [Color(0xFF435B9A), Color(0xFF7D92CE)],
-              onTap: () {
-                menuController.selectMenu(1);
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => QuizModeSelectionScreen(
-                      initialModule: QuizModule.hanziToMeaning,
-                    ),
-                  ),
-                );
-              },
+              onTap: () =>
+                  menuController.openQuiz(module: QuizModule.hanziToMeaning),
             ),
             _ModuleBentoCard(
               index: '04',
@@ -620,7 +593,8 @@ class _PracticeModuleCards extends StatelessWidget {
               subtitle: 'Master ㄅㄆㄇㄈ with Hanzi↔Zhuyin bidirectional practice.',
               icon: Icons.translate_outlined,
               colors: const [Color(0xFF6B3A8C), Color(0xFF9B59B6)],
-              onTap: () => menuController.selectMenu(2),
+              onTap: () =>
+                  menuController.selectMenu(MenuAppController.bopomofoIndex),
             ),
             _ModuleBentoCard(
               index: '05',
@@ -628,7 +602,8 @@ class _PracticeModuleCards extends StatelessWidget {
               subtitle: 'Create custom wordlists and practice with your own vocabulary.',
               icon: Icons.library_books_outlined,
               colors: const [Color(0xFF7C3AED), Color(0xFFA855F7)],
-              onTap: () => menuController.selectMenu(3),
+              onTap: () =>
+                  menuController.selectMenu(MenuAppController.libraryIndex),
             ),
           ],
         ),

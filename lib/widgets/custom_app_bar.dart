@@ -26,8 +26,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final menuController = context.read<MenuAppController>();
     final isDesktop = Responsive.isDesktop(context);
-    final canPop = Navigator.canPop(context);
-    final isSecondaryTab = menuController.selectedIndex != 0;
+    // Ask this page's own route, not the whole navigator: a section screen
+    // that is rebuilt while another page sits on top must not offer a Back
+    // button that would pop the last route and leave a blank screen.
+    final canPop = ModalRoute.of(context)?.canPop ?? false;
+    final isSecondaryTab =
+        menuController.selectedIndex != MenuAppController.dashboardIndex;
 
     Widget? leadingWidget = leading;
 
@@ -36,19 +40,19 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         leadingWidget = IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         );
       } else if (isSecondaryTab) {
         leadingWidget = IconButton(
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back to Dashboard',
-          onPressed: () => menuController.navigateToDashboard(),
+          onPressed: menuController.navigateToDashboard,
         );
       } else if (!isDesktop) {
         leadingWidget = IconButton(
           icon: const Icon(Icons.menu),
           tooltip: 'Open menu',
-          onPressed: () => Scaffold.of(context).openDrawer(),
+          onPressed: menuController.openDrawer,
         );
       }
     }

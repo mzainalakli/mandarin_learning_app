@@ -25,9 +25,17 @@ CI fails the build if `flutter analyze` reports **any** issue, including `info`-
 
 ## Tests
 
-All tests live in `test/widget_test.dart` (7 unit tests): `Vocabulary` fallbacks, quiz deck non-repetition, pass-queue ordering, CSV import (BOM, case-insensitive headers), and Excel template validity. They do not touch SQLite or widgets, so they run quickly with no platform setup.
+27 tests in three files; none needs SQLite or a device, so they run quickly everywhere (including CI):
 
-Areas without automated coverage: the database layer and migrations, import of JSON/XLSX files, the Zhuyin converter (only checked by the scripts below), and all screens.
+| File | Covers |
+|---|---|
+| `test/widget_test.dart` | `Vocabulary` fallbacks, deck non-repetition, Pass ordering, CSV/Excel import and export |
+| `test/quiz_provider_test.dart` | Review Later re-queuing and random placement, no-limit rounds and Finish, first-try scoring, multiple-choice scoring, Zhuyin prompt, persisted session size |
+| `test/navigation_test.dart` | Drawer selection does not pop the page, header menu opens the drawer, `CustomAppBar` back-button rules, `openQuiz` presets |
+
+`QuizProvider(recordReview:, random:)` takes a fake recorder and a seeded `Random`, so session logic can be tested without a database. Prefer adding such seams over tests that need the native SQLite library.
+
+Areas without automated coverage: the database layer and migrations, import of JSON/XLSX files, the Zhuyin converter (only checked by the scripts below), and the full screens against a real database. When changing navigation or quiz start-up it is worth running the app once on a phone-sized window and a desktop window.
 
 ## Command-line tools
 

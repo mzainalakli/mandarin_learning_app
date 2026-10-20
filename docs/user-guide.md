@@ -24,7 +24,7 @@ The app has seven top-level sections, available from the side menu:
 | 850 – 1099 px | tablet | Drawer, wider content |
 | ≥ 1100 px | desktop | Permanent sidebar on the left |
 
-On any section other than the Dashboard, the app bar shows a back arrow that returns to the Dashboard. Pages pushed on top (a running quiz, for example) show a normal back arrow instead.
+**Going back:** on any section other than the Dashboard the app bar shows a back arrow that returns to the Dashboard, and the system back button (Android back, or the back gesture) does the same; from the Dashboard it leaves the app. Pages opened on top of a section (a running quiz) have their own back arrow, which asks for confirmation before ending the session. Only the section you are looking at is loaded, so switching sections is quick; it starts from a fresh state each time.
 
 **Theme:** light or dark follows your operating system. There is no in-app theme switch.
 
@@ -43,53 +43,55 @@ The top bar shows the section title, a search field, a timer button and a "Learn
 
 | Card | Opens |
 |---|---|
-| 01 Pinyin → Hanzi + Meaning | Quiz settings with this module preselected |
-| 02 Hanzi → Pinyin + Meaning | Quiz settings with this module preselected |
-| 03 Hanzi → Meaning | Quiz settings with this module preselected |
+| 01 Pinyin → Hanzi + Meaning | Practice Quiz with this quiz type preselected |
+| 02 Hanzi → Pinyin + Meaning | Practice Quiz with this quiz type preselected |
+| 03 Hanzi → Meaning | Practice Quiz with this quiz type preselected |
 | 04 Bopomofo / Zhuyin Training | The Bopomofo Training section |
 | 05 My Library | The My Library section |
 
-> The **Total reviews** and **Review accuracy** tiles on the hero card do not yet reflect your real study history; see [Known issues](known-issues.md#dashboard-review-statistics-are-not-real).
+The hero card's **Total reviews** and **Review accuracy** are your real totals across all words (sum of every answer you have given and the share that were correct); they refresh each time you open the Dashboard.
 
 ## Practice Quiz
 
 Choose how a session runs, then tap an answer-mode card to begin.
 
-1. **Session size** — 10, 20, 50 or 100 words. Words are drawn at random from the chosen source.
-2. **Category / Library** — `All`, one of `TOCFL A1`…`TOCFL C2`, or any of your libraries (shown as `Library: <name>`). Choosing a TOCFL band is **cumulative**: `TOCFL B1` practises A1 + A2 + B1 words.
-3. **Timer presets** — Off, 10 s, 20 s or 30 s per question.
-4. **Answer mode** — tap **Multiple Choice Mode** or **Essay / Flashcard Mode**.
+1. **Quiz type** — *Pinyin → Hanzi + Meaning*, *Hanzi → Pinyin + Meaning* or *Hanzi → Meaning*. Starting from a Dashboard module card preselects that type; you can change it here at any time.
+2. **Number of questions** — choose a preset (10, 20, 50, 100 words), **No limit**, or **Custom…** to type any number from 1 to 1000. Your choice is remembered between launches and shared with Bopomofo Training.
+3. **Category / Library** — `All`, one of `TOCFL A1`…`TOCFL C2`, or any of your libraries (shown as `Library: <name>`). Choosing a TOCFL band is **cumulative**: `TOCFL B1` practises A1 + A2 + B1 words. Starting a quiz from a library preselects it.
+4. **Timer** — Off, 10 s, 20 s or 30 s, and a slider for any duration from 5 to 60 seconds once the timer is on.
+5. **Answer mode** — tap **Multiple Choice Mode** or **Essay / Flashcard Mode**.
 
-If you open this section from the side menu, the quiz module defaults to **Pinyin → Hanzi + Meaning**. To use another module, start from the matching card on the Dashboard. Starting a quiz from a library also uses the default module.
+### No-limit sessions
+
+With **No limit** the quiz never runs out of questions: it works through a pool of up to 1,000 random words from your chosen source, then reshuffles and starts another **round** (the same word never appears twice in a row across a round boundary). The session only ends when you tap **Finish** (to see a summary) or **Leave**. The progress strip shows `N answered`, the current round and how many words remain in it instead of a progress bar.
 
 ### During a quiz
 
-The screen shows a progress strip (`answered / total`, main deck remaining, review-later count, timer), a large prompt card, and the answer area.
+The screen shows a progress strip (answered / total, remaining words, passed words, timer), a large prompt card, and the answer area.
 
 - 🔊 **Pronounce** speaks the current word in Taiwan Mandarin (`zh-TW`).
-- **Pass** (app bar, or the ⋮ menu on phones) defers the current word. Passed words come back after the rest of the deck has been served.
-- **Leave** asks for confirmation. Words you already answered keep their saved statistics; the session itself ends. The system back button asks the same question.
+- **Pass** (app bar, or the ⋮ menu on phones) defers the current word to the end of the main deck, without saving a result for it.
+- **Finish** (no-limit sessions only) ends the session and shows the summary.
+- **Leave** asks for confirmation. Words you already answered keep their saved statistics; the rest of the session ends. The system back button asks the same question.
 
 **Multiple Choice** — four lettered options (A–D). Tap one: the correct option turns green, a wrong pick turns red and shakes. After about 0.7 seconds the quiz moves on to the next word automatically (the **Next word** button is also available). If the timer is on and runs out, the word counts as incorrect and the quiz advances.
 
 **Essay / Flashcard** — the answer is hidden. Think of it, tap **Show answer**, then choose:
 
-- **Got It** — counts as correct.
-- **Review Later** — counts as *incorrect* for statistics and moves on. (Only **Pass** puts a word back into the same session; see [Quiz engine](quiz-engine.md#pass-review-later-and-got-it).)
+- **Got It** — the word is done and counts as correct.
+- **Review Later** — the miss is saved, but the word stays in the session: it is put back at a **random position among the words you have not been asked yet** (never as the very next card unless it is the only one left) and you will be asked it again. You can choose Review Later as often as you like.
 
 If the timer runs out in flashcard mode the answer is revealed so you can still grade yourself.
 
-When the deck is exhausted, a **Session complete** card shows `Correct X of Y` and a **Back to modes** button.
+When a fixed-size deck is used up, or you tap Finish, a **Session complete** card shows `Correct X of Y on the first try` and a **Back to modes** button. "First try" means a word counts as correct only if your first answer to it was right — a word you had to review does not.
 
 ## Bopomofo Training
 
 Practise the phonetic symbols ㄅㄆㄇㄈ against real vocabulary.
 
 - **Training mode:** *Guess Zhuyin by Hanzi* (see the character, recall the Zhuyin) or *Guess Hanzi by Zhuyin* (see the Zhuyin, recall the character).
-- **Session size**, **TOCFL level** (cumulative, or `All`) and **timer presets** work as in Practice Quiz.
+- **Number of questions** (including **No limit** and **Custom…**), **TOCFL level** (cumulative, or `All`) and **timer** work as in Practice Quiz.
 - Choose Multiple Choice or Essay / Flashcard to begin.
-
-> Starting a session from this screen currently does not load a fresh deck; see [Known issues](known-issues.md#bopomofo-training-does-not-start-a-new-deck).
 
 ## My Library
 
@@ -134,12 +136,12 @@ A dedicated screen with the same import, export and template actions as the Dict
 - **Answer mode** — Multiple choice or Flashcards.
 - **Countdown timer** — on/off, and when on, a slider from 5 to 60 seconds.
 
-Settings are saved on the device and restored at the next launch. Note that the answer mode you tap on the Practice Quiz screen decides how a session is presented; the Settings answer-mode switch currently only affects timeout behaviour and the "needs 4 words" check (see [Known issues](known-issues.md#timeout-and-4-word-check-use-the-global-answer-mode-setting)).
+Settings are saved on the device and restored at the next launch (the number of questions you pick on the quiz screens is saved too). The answer mode of a session is the card you tap on the Practice Quiz or Bopomofo Training screen; the Settings answer-mode switch is only a stored preference and does not change how a session runs (see [Known issues](known-issues.md#settings-answer-mode-does-not-affect-sessions)).
 
 ## Tips for effective study
 
-1. Start with `TOCFL A1`, 20 words, Multiple Choice, no timer.
+1. Start with `TOCFL A1`, 20 words, Multiple Choice, no timer. When you want a long, uninterrupted drill, switch to **No limit**.
 2. Move to Flashcard mode once options feel too easy — recall without prompts is harder.
 3. Turn on a 10–20 s timer to train fast recognition.
 4. Build a library of words you keep missing (the detail sheet shows per-word accuracy) and quiz only that library.
-5. Use **Pass** when you genuinely do not know a word: it is re-served later without being counted as wrong.
+5. In flashcard mode use **Review Later** for words you got wrong or half-remembered: they come back among the cards you have not seen yet. Use **Pass** to skip a word without recording anything.

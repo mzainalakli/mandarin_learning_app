@@ -118,10 +118,11 @@ Search is case-insensitive for Latin text (SQLite `LIKE`) but not diacritic-inse
 
 ## Preferences
 
-`SettingsProvider` stores three keys in `shared_preferences`:
+`SettingsProvider` stores four keys in `shared_preferences`:
 
 | Key | Type | Default | Range |
 |---|---|---|---|
 | `isMultipleChoice` | bool | `true` | — |
 | `isTimerEnabled` | bool | `false` | — |
 | `timerDurationSeconds` | int | `10` | clamped to 5–60 |
+| `sessionSize` | int | `20` | 1–1000; `0` is stored for "no limit" |

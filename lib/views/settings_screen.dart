@@ -43,7 +43,7 @@ class SettingsScreen extends StatelessWidget {
             Slider(
               min: 5,
               max: 60,
-              divisions: 11,
+              divisions: 55,
               label: '${settings.timerDurationSeconds} seconds',
               value: settings.timerDurationSeconds.toDouble(),
               onChanged: (value) =>

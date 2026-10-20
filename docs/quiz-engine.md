@@ -12,13 +12,11 @@ The quiz logic lives in [`lib/providers/quiz_provider.dart`](../lib/providers/qu
 | `hanziToPinyinAndMeaning` | Hanzi | Pinyin + meaning | `Pinyin — meaning` | Hanzi → Pronunciation |
 | `hanziToMeaning` | Hanzi | Meaning | meaning | Hanzi → Meaning |
 | `zhuyinByHanzi` | Hanzi | Zhuyin + meaning | `Zhuyin — meaning` | Hanzi → Zhuyin |
-| `hanziByZhuyin` | Hanzi | Hanzi + meaning | `Hanzi — meaning` | Zhuyin → Hanzi |
+| `hanziByZhuyin` | Zhuyin (Pinyin if the word has no Zhuyin) | Hanzi + meaning | `Hanzi — meaning` | Zhuyin → Hanzi |
 
 "Hanzi" always means the **Traditional** form when one exists (`Vocabulary.displayHanzi`), otherwise the simplified `hanzi` column.
 
-> `hanziByZhuyin` is described as "see Zhuyin, recall Hanzi", but the prompt card currently displays the Hanzi for every module except `pinyinToHanziAndMeaning`. See [Known issues](known-issues.md#zhuyin-prompt-modes-show-hanzi-as-the-prompt).
-
-The three Pinyin/Hanzi/Meaning modules are launched from the Dashboard; the two Zhuyin modules from Bopomofo Training.
+The three Pinyin/Hanzi/Meaning modules are chosen with the *Quiz type* chips on Practice Quiz (or preselected by a Dashboard card); the two Zhuyin modules are chosen on Bopomofo Training.
 
 ## Answer modes
 
@@ -29,13 +27,19 @@ The three Pinyin/Hanzi/Meaning modules are launched from the Dashboard; the two 
 
 ## Building a session
 
+Both configuration screens call `launchQuiz()` ([`quiz_launcher.dart`](../lib/screens/quiz/quiz_launcher.dart)), which loads a fresh deck into `QuizProvider` and then pushes `QuizSessionScreen`. The session screen never loads words itself.
+
 1. A start method loads candidate words from the database:
-   - `startQuiz(category, …)` → `DatabaseHelper.getQuizVocabulary` — random order, `LIMIT sessionSize`.
-   - `startQuizFromLibrary(libraryId, …)` → `getQuizVocabularyFromLibrary` — random order, `LIMIT sessionSize`.
+   - `startQuiz(category, …)` → `DatabaseHelper.getQuizVocabulary` — random order, limited to the session size.
+   - `startQuizFromLibrary(libraryId, …)` → `getQuizVocabularyFromLibrary` — random order, limited to the session size.
    - `startNewQuiz(vocabs, …)` — uses an in-memory list (used by the unit tests).
-2. The list is shuffled and trimmed to `sessionSize` (10, 20, 50 or 100; default 20). This is the session's **deck** (`totalCount`).
-3. The deck is shuffled again into the `remaining` queue; the `reviewLater` queue starts empty and counters reset.
+2. `sessionSize` is an `int?`: a number from 1 to 1000 (`SettingsProvider.sessionSize`, default 20), or `null` for **no limit**. The candidate list is shuffled and trimmed to that size — or, for no limit, to `QuizProvider.endlessPoolSize` (1000) words. This is the session's **deck** (`totalCount`).
+3. The deck is shuffled again into the `remaining` queue; the Pass queue (`reviewLater`) starts empty and counters reset.
 4. The first question is drawn.
+
+### No-limit sessions
+
+`isEndless` is true when `sessionSize` is `null`. When the `remaining` and Pass queues are both empty, `_startNextRound()` increments `round`, clears the first-try bookkeeping, reshuffles the whole pool and carries on, so `quizFinished` never becomes true by itself. If the first card of the new round would be the card just answered, it is swapped with another so the same word is never asked twice in a row. The session ends only through `finishSession()` (the **Finish** button) or by leaving. Progress for the strip is `roundCompleted / poolSize`.
 
 ### Category selection is cumulative
 
@@ -57,37 +61,41 @@ If a band query returns **fewer than 4 words** (and the category is not `All`), 
 
 ```
 start → _advance() ─┐
-                    ├─ remaining empty AND reviewLater not empty → move reviewLater into remaining
-                    ├─ both empty → quizFinished = true
+                    ├─ remaining empty AND passed queue not empty → move passed words into remaining
+                    ├─ remaining empty AND no-limit session → start next round
+                    ├─ remaining still empty → quizFinished = true
                     └─ otherwise → current = remaining.removeLast(), build options (multiple choice)
 ```
 
-A question is *answered* when the learner selects an option (`checkAnswer`), self-grades (`selfEvaluate`), or the timer expires in multiple-choice mode (`markTimedOut`). `nextQuestion()` then increments `completedCount` and advances. In the UI, all three paths auto-advance after 700 ms.
+A question is *answered* when the learner selects an option (`checkAnswer`), self-grades (`selfEvaluate` / `reviewLater`), or the timer expires in multiple-choice mode (`markTimedOut`). `nextQuestion()` then moves on. In the UI, all of these auto-advance after 700 ms.
 
 ### Pass, Review Later and Got It
 
 | Action | Effect on the session | Effect on saved statistics |
 |---|---|---|
-| **Pass** | Word goes to the `reviewLater` queue and returns once the main deck is empty. Not allowed after the question has been answered. | none |
-| **Got It** (flashcard) | Counts as answered and correct (`score++`). | `reviewCount + 1`, `correctCount + 1` |
-| **Review Later** (flashcard) | Counts as answered and **incorrect**; the word is **not** re-queued. | `reviewCount + 1` |
-| Correct option (multiple choice) | `score++` | `reviewCount + 1`, `correctCount + 1` |
-| Wrong option (multiple choice) | answered, no score | `reviewCount + 1` |
-| Timeout (multiple choice) | answered, no score, answer shown | `reviewCount + 1` |
+| **Pass** | Word goes to the *passed* queue and returns once the main deck is empty. Not allowed after the question has been answered. | none |
+| **Got It** (flashcard) | Word is completed (`completedCount + 1`). | `reviewCount + 1`, `correctCount + 1` |
+| **Review Later** (flashcard) | Word is **not** completed. After the feedback delay it is inserted at a random position among the questions not yet asked and will be asked again. | `reviewCount + 1` (a miss) |
+| Correct option (multiple choice) | Word is completed. | `reviewCount + 1`, `correctCount + 1` |
+| Wrong option (multiple choice) | Word is completed. | `reviewCount + 1` |
+| Timeout (multiple choice) | Word is completed, answer shown. | `reviewCount + 1` |
 
-Because every deck word is served exactly once (plus once more per Pass), a word never appears twice in a row unless it is the only one left in the pass queue.
+**Random reinsertion.** `remaining` is used as a stack whose last element is the next question. `_reinsertRandomly` inserts the word at `nextInt(remaining.length)`, i.e. at any position *below* the last element. At least one other question is therefore asked first whenever one is available; if the main deck is empty it first pulls in the passed words, and if the word is truly the only one left it simply returns.
+
+Every deck word is served once, plus once more per Pass or Review Later. A word being reviewed repeatedly records a miss each time and one correct answer when it is finally graded Got It, so its stored accuracy reflects how hard it was.
 
 ## Timer
 
-- Controlled by `SettingsProvider` (`isTimerEnabled`, `timerDurationSeconds` in the range 5–60, default 10 s). The presets on the configuration screens set 10, 20 or 30 s; the Settings slider allows any value from 5 to 60 in 5-second steps.
-- A one-second periodic timer restarts for each new question (including after Pass).
-- On expiry: in multiple-choice mode the question is marked timed out (incorrect) and the quiz advances; in flashcard mode the answer is revealed.
+- Controlled by `SettingsProvider` (`isTimerEnabled`, `timerDurationSeconds` in the range 5–60, default 10 s). The configuration screens offer 10, 20 and 30 s presets plus a slider for any value from 5 to 60 s (1-second steps); the Settings screen has the same slider.
+- A one-second periodic timer restarts for each new question (including after Pass and Review Later).
+- On expiry the **session's** answer mode decides: in multiple-choice mode the question is marked timed out (incorrect) and the quiz advances; in flashcard mode the answer is revealed.
 - The timer is cancelled as soon as the learner answers, passes or leaves.
 
 ## Scoring and persistence
 
-- In-session: `score` (correct answers), `completedCount` (answered words), `progressFraction = completedCount / totalCount`.
-- The finish card reports `Correct <score> of <completedCount>` and `You reviewed <totalCount> words in total.`
+- In-session: `score` (words answered correctly **on the first attempt**), `completedCount` (completed words), `progressFraction` (`completedCount / totalCount`, or the current round's share in a no-limit session).
+- First-attempt scoring: the first graded answer to a word decides whether it scores; later attempts (after Review Later or Pass) do not. In a no-limit session the bookkeeping resets every round.
+- The finish card reports `Correct <score> of <completedCount> on the first try` and either `You reviewed <totalCount> words in total.` or, for no-limit sessions, `You answered <completedCount> words (<round> rounds).`
 - Persistent: `DatabaseHelper.updateReviewStats(id, correct)` adds one to `reviewCount`, adds one to `correctCount` if correct, and stores `lastReviewed` as an ISO-8601 timestamp. Words without a database id (`id == null`) are never scored.
 - `Vocabulary.accuracy` is `correctCount / reviewCount` (0 when never reviewed). It is shown in the word detail sheet.
 
@@ -97,4 +105,4 @@ Because every deck word is served exactly once (plus once more per Pass), a word
 
 ## Tests
 
-`test/widget_test.dart` covers: Traditional/Zhuyin fallback in `Vocabulary`; non-repetition of a session deck; that a passed word returns only after the remaining words; CSV import with BOM and mixed-case headers; and the Excel template. Run them with `flutter test`.
+`QuizProvider` accepts an optional review recorder and random generator, so the session logic is tested without a database: [`test/quiz_provider_test.dart`](../test/quiz_provider_test.dart) covers Review Later (re-queuing, random position, never immediately next, first-try scoring), no-limit sessions (rounds, no repeats across rounds, Finish), multiple-choice scoring and the persisted session size. [`test/widget_test.dart`](../test/widget_test.dart) covers the model, deck non-repetition, the Pass queue and import/export. Run everything with `flutter test`.

@@ -45,7 +45,7 @@ To start fresh, delete `mandarin.db`; the next launch re-seeds it.
 
 ```bash
 flutter analyze    # static analysis — must report "No issues found!"
-flutter test       # unit tests (7 tests in test/widget_test.dart)
+flutter test       # 27 unit/widget tests in test/
 ```
 
 CI runs both before building. The analyzer configuration lives in `analysis_options.yaml` (it includes `flutter_lints` and excludes the platform folders, `build/` and the stray `responsive_ui_template/` folder).
