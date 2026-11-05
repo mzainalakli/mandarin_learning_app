@@ -1,4 +1,5 @@
 import 'package:csv/csv.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
@@ -19,6 +20,14 @@ class DatabaseHelper {
     if (_db != null) return _db!;
     _db = await _initDb();
     return _db!;
+  }
+
+  /// Uses [db] (e.g. in-memory) instead of the on-disk database and creates
+  /// the empty schema on it. Tests only.
+  @visibleForTesting
+  Future<void> useDatabaseForTest(Database db) async {
+    _db = db;
+    await _createTables(db);
   }
 
   Future<Database> _initDb() async {
@@ -264,40 +273,53 @@ class DatabaseHelper {
     return getVocabulariesPaged(limit: 10000);
   }
 
+  /// Builds the shared WHERE clause. [excludeLibraryId] hides words already
+  /// in that library.
+  (String, List<Object>) _vocabFilter({
+    String? category,
+    String? searchQuery,
+    int? excludeLibraryId,
+  }) {
+    final clauses = <String>[];
+    final args = <Object>[];
+    if (category != null && category != 'All') {
+      clauses.add('category = ?');
+      args.add(category);
+    }
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      clauses.add(
+        '(hanzi LIKE ? OR traditionalHanzi LIKE ? OR pinyin LIKE ? OR meaning LIKE ? OR zhuyin LIKE ?)',
+      );
+      final term = '%$searchQuery%';
+      args.addAll([term, term, term, term, term]);
+    }
+    if (excludeLibraryId != null) {
+      clauses.add(
+        'NOT EXISTS (SELECT 1 FROM library_vocab_items lvi '
+        'WHERE lvi.library_id = ? AND lvi.vocab_id = vocabularies.id)',
+      );
+      args.add(excludeLibraryId);
+    }
+    final where = clauses.isEmpty ? '' : 'WHERE ${clauses.join(' AND ')}';
+    return (where, args);
+  }
+
   Future<List<Vocabulary>> getVocabulariesPaged({
     int limit = 50,
     int offset = 0,
     String? category,
     String? searchQuery,
+    int? excludeLibraryId,
   }) async {
     final db = await database;
-    final whereClauses = <String>[];
-    final whereArgs = <Object>[];
-
-    if (category != null && category != 'All') {
-      whereClauses.add('category = ?');
-      whereArgs.add(category);
-    }
-    if (searchQuery != null && searchQuery.isNotEmpty) {
-      whereClauses.add(
-        '(hanzi LIKE ? OR traditionalHanzi LIKE ? OR pinyin LIKE ? OR meaning LIKE ? OR zhuyin LIKE ?)',
-      );
-      final searchTerm = '%$searchQuery%';
-      whereArgs.addAll([
-        searchTerm,
-        searchTerm,
-        searchTerm,
-        searchTerm,
-        searchTerm,
-      ]);
-    }
-
-    final where = whereClauses.isEmpty
-        ? ''
-        : 'WHERE ${whereClauses.join(' AND ')}';
+    final (where, args) = _vocabFilter(
+      category: category,
+      searchQuery: searchQuery,
+      excludeLibraryId: excludeLibraryId,
+    );
     final maps = await db.rawQuery(
       'SELECT * FROM vocabularies $where ORDER BY category, hanzi LIMIT ? OFFSET ?',
-      [...whereArgs, limit, offset],
+      [...args, limit, offset],
     );
     return maps.map(Vocabulary.fromMap).toList();
   }
@@ -305,37 +327,47 @@ class DatabaseHelper {
   Future<int> getVocabulariesCount({
     String? category,
     String? searchQuery,
+    int? excludeLibraryId,
   }) async {
     final db = await database;
-    final whereClauses = <String>[];
-    final whereArgs = <Object>[];
-
-    if (category != null && category != 'All') {
-      whereClauses.add('category = ?');
-      whereArgs.add(category);
-    }
-    if (searchQuery != null && searchQuery.isNotEmpty) {
-      whereClauses.add(
-        '(hanzi LIKE ? OR traditionalHanzi LIKE ? OR pinyin LIKE ? OR meaning LIKE ? OR zhuyin LIKE ?)',
-      );
-      final searchTerm = '%$searchQuery%';
-      whereArgs.addAll([
-        searchTerm,
-        searchTerm,
-        searchTerm,
-        searchTerm,
-        searchTerm,
-      ]);
-    }
-
-    final where = whereClauses.isEmpty
-        ? ''
-        : 'WHERE ${whereClauses.join(' AND ')}';
+    final (where, args) = _vocabFilter(
+      category: category,
+      searchQuery: searchQuery,
+      excludeLibraryId: excludeLibraryId,
+    );
     final result = await db.rawQuery(
       'SELECT COUNT(*) as count FROM vocabularies $where',
-      whereArgs,
+      args,
     );
     return result.first['count'] as int;
+  }
+
+  /// Ids of every word matching the filter (no limit), in list order.
+  Future<List<int>> getVocabularyIds({
+    String? category,
+    String? searchQuery,
+    int? excludeLibraryId,
+  }) async {
+    final db = await database;
+    final (where, args) = _vocabFilter(
+      category: category,
+      searchQuery: searchQuery,
+      excludeLibraryId: excludeLibraryId,
+    );
+    final rows = await db.rawQuery(
+      'SELECT id FROM vocabularies $where ORDER BY category, hanzi',
+      args,
+    );
+    return rows.map((r) => r['id'] as int).toList();
+  }
+
+  Future<Set<int>> getLibraryVocabIds(int libraryId) async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT vocab_id FROM library_vocab_items WHERE library_id = ?',
+      [libraryId],
+    );
+    return rows.map((r) => r['vocab_id'] as int).toSet();
   }
 
   Future<int> deleteVocab(int id) async =>
@@ -533,19 +565,32 @@ class DatabaseHelper {
     );
   }
 
+  /// Adds the words in one transaction and returns how many were actually
+  /// new (ids already in the library are ignored).
   Future<int> addVocabsToLibrary(int libraryId, List<int> vocabIds) async {
     if (vocabIds.isEmpty) return 0;
     final db = await database;
-    final batch = db.batch();
-    for (final vocabId in vocabIds) {
-      batch.insert(
-        'library_vocab_items',
-        {'library_id': libraryId, 'vocab_id': vocabId},
-        conflictAlgorithm: ConflictAlgorithm.ignore,
-      );
-    }
-    await batch.commit(noResult: true);
-    return vocabIds.length;
+    return db.transaction((txn) async {
+      Future<int> count() async =>
+          Sqflite.firstIntValue(
+            await txn.rawQuery(
+              'SELECT COUNT(*) FROM library_vocab_items WHERE library_id = ?',
+              [libraryId],
+            ),
+          ) ??
+          0;
+      final before = await count();
+      final batch = txn.batch();
+      for (final vocabId in vocabIds) {
+        batch.insert(
+          'library_vocab_items',
+          {'library_id': libraryId, 'vocab_id': vocabId},
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+      await batch.commit(noResult: true);
+      return await count() - before;
+    });
   }
 
   Future<int> removeVocabFromLibrary(int libraryId, int vocabId) async {

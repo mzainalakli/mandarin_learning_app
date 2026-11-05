@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -681,24 +683,37 @@ class _AddVocabBottomSheet extends StatefulWidget {
 }
 
 class _AddVocabBottomSheetState extends State<_AddVocabBottomSheet> {
+  static const _pageSize = 50;
+  static const _debounce = Duration(milliseconds: 250);
+
   final _searchCtrl = TextEditingController();
-  final _debounce = Duration(milliseconds: 250);
-  DateTime? _lastSearchTime;
+  Timer? _debounceTimer;
+  int _requestId = 0; // drops results of superseded loads
   String _searchQuery = '';
   String _filterCategory = 'All';
-  List<Vocabulary> _searchResults = [];
-  Set<int> _selectedIds = {};
-  bool _isLoading = false;
-  bool _selectAllFiltered = false;
+  bool _showAdded = false;
+  List<Vocabulary> _results = [];
+  Set<int> _libraryIds = {}; // words already in the library (show-added mode)
+  List<int> _selectableIds = []; // every matching word that can be selected
+  final Set<int> _selectedIds = {};
+  int _total = 0;
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
+
+  bool get _hasMore => _results.length < _total;
+  bool get _allSelected =>
+      _selectableIds.isNotEmpty && _selectableIds.every(_selectedIds.contains);
 
   @override
   void initState() {
     super.initState();
     _searchCtrl.addListener(_onSearchChanged);
+    _reload();
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchCtrl.removeListener(_onSearchChanged);
     _searchCtrl.dispose();
     super.dispose();
@@ -706,91 +721,120 @@ class _AddVocabBottomSheetState extends State<_AddVocabBottomSheet> {
 
   void _onSearchChanged() {
     final query = _searchCtrl.text.trim();
-    _lastSearchTime = DateTime.now();
-    Future.delayed(_debounce, () {
-      if (DateTime.now().difference(_lastSearchTime!) >= _debounce) {
-        _performSearch(query);
-      }
+    if (query == _searchQuery) return;
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(_debounce, () {
+      _searchQuery = query;
+      _reload();
     });
   }
 
-  Future<void> _performSearch(String query) async {
-    setState(() {
-      _searchQuery = query;
-      _isLoading = true;
-      _selectedIds.clear();
-      _selectAllFiltered = false;
-    });
-
+  /// Loads the first page, the total and the selectable ids for the current
+  /// filter. The selection is kept.
+  Future<void> _reload() async {
+    final request = ++_requestId;
+    setState(() => _isLoading = true);
+    final db = DatabaseHelper.instance;
+    final libraryId = widget.library.id;
+    final query = _searchQuery.isEmpty ? null : _searchQuery;
+    final category = _filterCategory == 'All' ? null : _filterCategory;
     try {
-      final results = await DatabaseHelper.instance.getVocabulariesPaged(
-        limit: 200,
-        category: _filterCategory == 'All' ? null : _filterCategory,
-        searchQuery: query.isEmpty ? null : query,
-      );
-      if (mounted) {
-        setState(() {
-          _searchResults = results;
-          _isLoading = false;
-        });
-      }
+      final exclude = _showAdded ? null : libraryId;
+      final results = await Future.wait([
+        db.getVocabulariesPaged(
+          limit: _pageSize,
+          category: category,
+          searchQuery: query,
+          excludeLibraryId: exclude,
+        ),
+        db.getVocabulariesCount(
+          category: category,
+          searchQuery: query,
+          excludeLibraryId: exclude,
+        ),
+        db.getVocabularyIds(
+          category: category,
+          searchQuery: query,
+          excludeLibraryId: libraryId,
+        ),
+        db.getLibraryVocabIds(libraryId),
+      ]);
+      if (!mounted || request != _requestId) return;
+      setState(() {
+        _results = results[0] as List<Vocabulary>;
+        _total = results[1] as int;
+        _selectableIds = results[2] as List<int>;
+        _libraryIds = results[3] as Set<int>;
+        _isLoading = false;
+      });
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && request == _requestId) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _onCategoryChanged(String category) async {
-    setState(() {
-      _filterCategory = category;
-      _selectedIds.clear();
-      _selectAllFiltered = false;
-      _isLoading = true;
-    });
-    await _performSearch(_searchQuery);
+  Future<void> _loadMore() async {
+    if (_isLoading || _isLoadingMore || !_hasMore) return;
+    final request = _requestId;
+    setState(() => _isLoadingMore = true);
+    try {
+      final page = await DatabaseHelper.instance.getVocabulariesPaged(
+        limit: _pageSize,
+        offset: _results.length,
+        category: _filterCategory == 'All' ? null : _filterCategory,
+        searchQuery: _searchQuery.isEmpty ? null : _searchQuery,
+        excludeLibraryId: _showAdded ? null : widget.library.id,
+      );
+      if (!mounted || request != _requestId) return;
+      setState(() {
+        _results = [..._results, ...page];
+        _isLoadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingMore = false);
+    }
+  }
+
+  void _onCategoryChanged(String category) {
+    _filterCategory = category;
+    _reload();
   }
 
   void _toggleSelectAll() {
     setState(() {
-      _selectAllFiltered = !_selectAllFiltered;
-      if (_selectAllFiltered) {
-        _selectedIds = _searchResults
-            .where((v) => v.id != null)
-            .map((v) => v.id!)
-            .cast<int>()
-            .toSet();
+      if (_allSelected) {
+        _selectedIds.removeAll(_selectableIds);
       } else {
-        _selectedIds.clear();
+        _selectedIds.addAll(_selectableIds);
       }
     });
   }
 
   void _toggleSelection(int vocabId) {
     setState(() {
-      if (_selectedIds.contains(vocabId)) {
-        _selectedIds.remove(vocabId);
-        _selectAllFiltered = false;
-      } else {
-        _selectedIds.add(vocabId);
-        if (_selectedIds.length == _searchResults.where((v) => v.id != null).length) {
-          _selectAllFiltered = true;
-        }
-      }
+      if (!_selectedIds.remove(vocabId)) _selectedIds.add(vocabId);
     });
   }
 
   Future<void> _saveToLibrary() async {
     if (_selectedIds.isEmpty) return;
 
-    final vocabIds = _selectedIds.toList();
-    await DatabaseHelper.instance.addVocabsToLibrary(widget.library.id, vocabIds);
+    final added = await DatabaseHelper.instance.addVocabsToLibrary(
+      widget.library.id,
+      _selectedIds.toList(),
+    );
     if (mounted) {
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
       widget.onVocabsAdded();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added ${vocabIds.length} words to library')),
+      messenger.showSnackBar(
+        SnackBar(content: Text('$added ${added == 1 ? 'word' : 'words'} added')),
       );
     }
   }
+
+  String get _emptyMessage => _searchQuery.isEmpty && _filterCategory == 'All'
+      ? 'All words are already in this library'
+      : 'No results found';
 
   @override
   Widget build(BuildContext context) {
@@ -827,11 +871,13 @@ class _AddVocabBottomSheetState extends State<_AddVocabBottomSheet> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          'Add to "${widget.library.name}"',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                        Expanded(
+                          child: Text(
+                            'Add to "${widget.library.name}"',
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+                          ),
                         ),
-                        const Spacer(),
                         if (_selectedIds.isNotEmpty)
                           FilledButton.icon(
                             icon: const Icon(Icons.save),
@@ -870,26 +916,38 @@ class _AddVocabBottomSheetState extends State<_AddVocabBottomSheet> {
                         },
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
+                    const SizedBox(height: 4),
+                    SwitchListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Show words already added'),
+                      value: _showAdded,
+                      onChanged: (value) {
+                        _showAdded = value;
+                        _reload();
+                      },
+                    ),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
                       children: [
-                        if (_searchResults.isNotEmpty)
-                          Checkbox(
-                            value: _selectAllFiltered,
-                            onChanged: (_) => _toggleSelectAll(),
+                        Text('$_total results', style: Theme.of(context).textTheme.labelLarge),
+                        if (_selectableIds.isNotEmpty)
+                          TextButton(
+                            onPressed: _toggleSelectAll,
+                            child: Text(
+                              _allSelected
+                                  ? 'Deselect all (${_selectableIds.length})'
+                                  : 'Select all (${_selectableIds.length})',
+                            ),
                           ),
-                        if (_searchResults.isNotEmpty)
-                          Text(
-                            _selectAllFiltered ? 'Deselect all (${_searchResults.where((v) => v.id != null).length})' : 'Select all (${_searchResults.where((v) => v.id != null).length})',
-                            style: Theme.of(context).textTheme.labelLarge,
+                        if (_selectedIds.isNotEmpty) ...[
+                          Text('${_selectedIds.length} selected', style: Theme.of(context).textTheme.labelLarge),
+                          TextButton(
+                            onPressed: () => setState(_selectedIds.clear),
+                            child: const Text('Clear selection'),
                           ),
-                        const Spacer(),
-                        if (_isLoading)
-                          const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -899,32 +957,44 @@ class _AddVocabBottomSheetState extends State<_AddVocabBottomSheet> {
               Expanded(
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
-                    : _searchResults.isEmpty
+                    : _results.isEmpty
                         ? Center(
                             child: Text(
-                              _searchQuery.isEmpty ? 'Search to find vocabulary' : 'No results found',
+                              _emptyMessage,
                               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                                   ),
                             ),
                           )
-                        : ListView.separated(
-                            controller: scrollController,
-                            padding: const EdgeInsets.all(16),
-                            itemCount: _searchResults.length,
-                            separatorBuilder: (_, _) => const SizedBox(height: 8),
-                            itemBuilder: (context, index) {
-                              final vocab = _searchResults[index];
-                              final isSelected = vocab.id != null && _selectedIds.contains(vocab.id!);
-                              final inLibrary = vocab.id != null;
-                              return _AddVocabTile(
-                                vocab: vocab,
-                                isSelected: isSelected,
-                                inLibrary: inLibrary,
-                                onToggle: vocab.id != null ? () => _toggleSelection(vocab.id!) : null,
-                                onPronounce: () => TtsService.instance.speak(vocab.displayHanzi),
-                              );
+                        : NotificationListener<ScrollNotification>(
+                            onNotification: (n) {
+                              if (n.metrics.extentAfter < 400) _loadMore();
+                              return false;
                             },
+                            child: ListView.separated(
+                              controller: scrollController,
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _results.length + (_hasMore ? 1 : 0),
+                              separatorBuilder: (_, _) => const SizedBox(height: 8),
+                              itemBuilder: (context, index) {
+                                if (index >= _results.length) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                  );
+                                }
+                                final vocab = _results[index];
+                                final id = vocab.id;
+                                final inLibrary = id != null && _libraryIds.contains(id);
+                                return _AddVocabTile(
+                                  vocab: vocab,
+                                  isSelected: id != null && _selectedIds.contains(id),
+                                  inLibrary: inLibrary,
+                                  onToggle: id != null && !inLibrary ? () => _toggleSelection(id) : null,
+                                  onPronounce: () => TtsService.instance.speak(vocab.displayHanzi),
+                                );
+                              },
+                            ),
                           ),
               ),
             ],
@@ -965,7 +1035,7 @@ class _AddVocabTile extends StatelessWidget {
       ),
       child: ListTile(
         leading: Checkbox(
-          value: isSelected,
+          value: isSelected || inLibrary,
           onChanged: onToggle != null ? (_) => onToggle!() : null,
         ),
         title: Text(
