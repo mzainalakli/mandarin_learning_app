@@ -72,11 +72,13 @@ The UI is not shown until step 4 completes, which is why the first launch (seedi
 | Provider | Owns | Persists to |
 |---|---|---|
 | `VocabProvider` | The currently displayed page of words (`vocabs`), `currentPage`, `totalCount`, `isLoading`; add/delete; import orchestration; library word loading | SQLite via `DatabaseHelper` |
-| `QuizProvider` | The active session: deck, remaining and passed queues, current word, options, score, round, answered/revealed flags. Accepts an optional review recorder and `Random` for testing | SQLite (review statistics only) |
+| `QuizProvider` | The active session: deck, remaining and passed queues, current word, options, score, round, answered/revealed flags. Accepts an optional review recorder and `Random` for testing. Review Later is capped at `maxReviewLaterPerWord` (3) per word and exposes `canReviewLater`, `repeatTotal` and `repeatedWordCount` for the UI | SQLite (review statistics only) |
 | `SettingsProvider` | Answer-mode preference, timer settings and the number of questions per session (`null` = no limit) | `shared_preferences` |
 | `MenuAppController` | `selectedIndex` of the active section; the `GlobalKey<ScaffoldState>` used to open/close the drawer; the quiz preset (`quizModule`, `quizLibrary`) set by `openQuiz()` | memory |
 
 Screens call `notifyListeners`-driven updates with `context.watch<T>()` and fire actions with `context.read<T>()`. Some screens also call `DatabaseHelper.instance` directly for read-only needs such as listing libraries; there is no repository layer between providers and the helper.
+
+The Library's "Add words" sheet (`_AddVocabBottomSheet`) keeps its own local state rather than using `VocabProvider`. It pages 50 rows at a time through `DatabaseHelper.getVocabulariesPaged(excludeLibraryId:)`, which hides words already in the library with a `NOT EXISTS` on `library_vocab_items`. The selection (a set of ids) survives search and category changes, and "Select all" uses `getVocabularyIds`, which returns every matching id regardless of paging. `addVocabsToLibrary` runs in one transaction and returns the number of rows actually inserted.
 
 `VocabProvider.vocabs` is a *view* — whatever page/filter the Dictionary last loaded — not the full vocabulary. Code that needs full sets (Dashboard counts, quiz building) queries the database directly.
 

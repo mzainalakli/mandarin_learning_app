@@ -26,6 +26,10 @@ class QuizProvider extends ChangeNotifier {
   /// Words loaded for a "no limit" session; the pool is replayed in rounds.
   static const endlessPoolSize = 1000;
 
+  /// How many times one word may be sent to Review Later per session (per
+  /// round in a no-limit session). Prevents endless loops.
+  static const maxReviewLaterPerWord = 3;
+
   final ReviewRecorder _recordReview;
   final Random _rng;
 
@@ -37,6 +41,9 @@ class QuizProvider extends ChangeNotifier {
   List<Vocabulary> _remaining = [];
   List<Vocabulary> _reviewLater = [];
   final Set<Vocabulary> _attempted = Set<Vocabulary>.identity();
+  final Map<Vocabulary, int> _reviewLaterCounts = Map.identity();
+  final Set<Vocabulary> _repeatedWords = Set<Vocabulary>.identity();
+  int _repeatTotal = 0;
   Vocabulary? _current;
   Vocabulary? get current => _current;
   List<Vocabulary> _options = [];
@@ -68,6 +75,17 @@ class QuizProvider extends ChangeNotifier {
 
   /// Words deferred with Pass; they return once the main deck runs out.
   int get reviewLaterCount => _reviewLater.length;
+
+  /// Total "Review Later" repeats so far in this session.
+  int get repeatTotal => _repeatTotal;
+
+  /// Distinct words that were sent to Review Later at least once.
+  int get repeatedWordCount => _repeatedWords.length;
+
+  /// False once the current word has used up [maxReviewLaterPerWord].
+  bool get canReviewLater =>
+      _current != null &&
+      (_reviewLaterCounts[_current] ?? 0) < maxReviewLaterPerWord;
   int get totalCount => _allVocabs.length;
   double get progressFraction {
     if (_allVocabs.isEmpty) return 0.0;
@@ -113,8 +131,8 @@ class QuizProvider extends ChangeNotifier {
   }
 
   String optionText(Vocabulary vocab) => switch (_module) {
-    QuizModule.pinyinToHanziAndMeaning =>
-      '${vocab.displayHanzi}  —  ${vocab.displayMeaning}',
+    // The meaning is shown in the question, so the choices are Hanzi only.
+    QuizModule.pinyinToHanziAndMeaning => vocab.displayHanzi,
     QuizModule.hanziToPinyinAndMeaning =>
       '${vocab.displayPronunciation}  —  ${vocab.displayMeaning}',
     QuizModule.hanziToMeaning => vocab.displayMeaning,
@@ -196,6 +214,9 @@ class QuizProvider extends ChangeNotifier {
     _remaining = List<Vocabulary>.from(_allVocabs)..shuffle(_rng);
     _reviewLater = [];
     _attempted.clear();
+    _reviewLaterCounts.clear();
+    _repeatedWords.clear();
+    _repeatTotal = 0;
     _current = null;
     _options = [];
     _selectedIndex = null;
@@ -259,10 +280,14 @@ class QuizProvider extends ChangeNotifier {
 
   /// Flashcard "Review Later": the miss is saved, but the word is not
   /// completed. On [nextQuestion] it is put back at a random position among
-  /// the questions that have not been asked yet.
+  /// the questions that have not been asked yet. Ignored once the word has
+  /// reached [maxReviewLaterPerWord] (see [canReviewLater]).
   Future<void> reviewLater() async {
     final current = _current;
-    if (current == null || _answered || !_revealed) return;
+    if (current == null || _answered || !_revealed || !canReviewLater) return;
+    _reviewLaterCounts[current] = (_reviewLaterCounts[current] ?? 0) + 1;
+    _repeatedWords.add(current);
+    _repeatTotal++;
     _answered = true;
     _requeueCurrent = true;
     _registerOutcome(false);
@@ -321,6 +346,7 @@ class QuizProvider extends ChangeNotifier {
     _round++;
     _roundCompleted = 0;
     _attempted.clear();
+    _reviewLaterCounts.clear();
     _remaining = List<Vocabulary>.from(_allVocabs)..shuffle(_rng);
     final previous = _current;
     if (_remaining.length > 1 &&
@@ -357,9 +383,19 @@ class QuizProvider extends ChangeNotifier {
     if (_answerMode == QuizAnswerMode.multipleChoice) {
       final pool = List<Vocabulary>.from(_allVocabs)..remove(_current);
       pool.shuffle(_rng);
-      _options = [_current!, ...pool.take(3)]..shuffle(_rng);
+      _options = [_current!, ...(_distractors(pool).take(3))]..shuffle(_rng);
     }
     notifyListeners();
+  }
+
+  /// Hanzi-only choices must be distinguishable: drop entries whose Hanzi
+  /// equals the answer's or one already picked. Same-pinyin words are kept
+  /// on purpose, since the question also shows the meaning. Other modules
+  /// are left unfiltered.
+  Iterable<Vocabulary> _distractors(List<Vocabulary> pool) {
+    if (_module != QuizModule.pinyinToHanziAndMeaning) return pool;
+    final seen = <String>{_current!.displayHanzi};
+    return pool.where((v) => seen.add(v.displayHanzi));
   }
 
   int correctIndex() => _current == null ? -1 : _options.indexOf(_current!);
