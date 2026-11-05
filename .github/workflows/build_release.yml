@@ -56,8 +56,44 @@ jobs:
       - name: Clean Previous Builds
         run: flutter clean
 
+      - name: Prepare signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_PASSWORD KEY_ALIAS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name is empty or missing. Refusing to build with the debug key."
+              exit 1
+            fi
+          done
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+          } > android/key.properties
+
+      # Previous builds all had versionCode 1, so offset by 10 to always be higher.
       - name: Build Android APK
-        run: flutter build apk --release --no-tree-shake-icons
+        run: flutter build apk --release --no-tree-shake-icons --build-number=$((10 + ${{ github.run_number }}))
+
+      - name: Verify APK signature
+        run: |
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/36.0.0/apksigner)
+          OUT=$("$APKSIGNER" verify --print-certs build/app/outputs/flutter-apk/app-release.apk)
+          echo "$OUT" | grep -E "Signer #1 certificate (DN|SHA-256)"
+          if echo "$OUT" | grep -q "Android Debug"; then
+            echo "::error::APK is signed with the debug key."
+            exit 1
+          fi
+
+      - name: Remove signing files
+        if: always()
+        run: rm -f android/app/release.jks android/key.properties
 
       - name: Build Linux Bundle
         run: |

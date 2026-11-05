@@ -47,3 +47,9 @@ app.*.map.json
 # Widget Preview related
 .widget_preview/
 .vscode/settings.json
+
+# Android release signing (never commit)
+*.jks
+*.keystore
+*.b64
+android/key.properties

@@ -40,6 +40,7 @@ Future<void> _reviewLater(QuizProvider quiz) async {
 }
 
 void main() {
+  _pinyinToHanziTests();
   group('Review Later (flashcards)', () {
     test('keeps the word in the session instead of completing it', () async {
       final recorder = _Recorder();
@@ -122,6 +123,62 @@ void main() {
 
       expect(quiz.quizFinished, isFalse);
       expect(quiz.current, same(only));
+    });
+
+    test('is capped per word and the session still ends', () async {
+      final recorder = _Recorder();
+      final quiz = _quiz(recorder);
+      quiz.startNewQuiz(
+        _vocabs(1),
+        module: QuizModule.hanziToMeaning,
+        answerMode: QuizAnswerMode.essay,
+      );
+      final only = quiz.current!;
+
+      for (var i = 0; i < QuizProvider.maxReviewLaterPerWord; i++) {
+        expect(quiz.canReviewLater, isTrue);
+        await _reviewLater(quiz);
+        expect(quiz.quizFinished, isFalse);
+        expect(quiz.current, same(only));
+      }
+      expect(quiz.canReviewLater, isFalse);
+
+      quiz.revealAnswer();
+      await quiz.reviewLater(); // ignored
+      expect(quiz.answered, isFalse);
+      expect(
+        recorder.calls.length,
+        QuizProvider.maxReviewLaterPerWord,
+        reason: 'ignored call records nothing',
+      );
+
+      await quiz.selfEvaluate(true);
+      quiz.nextQuestion();
+      expect(quiz.quizFinished, isTrue);
+      expect(quiz.repeatedWordCount, 1);
+      expect(quiz.repeatTotal, QuizProvider.maxReviewLaterPerWord);
+    });
+
+    test('session ends only when every repeated word is done; score is first try', () async {
+      for (var seed = 0; seed < 20; seed++) {
+        final quiz = _quiz(_Recorder(), seed: seed);
+        quiz.startNewQuiz(
+          _vocabs(6),
+          module: QuizModule.hanziToMeaning,
+          answerMode: QuizAnswerMode.essay,
+        );
+        final missed = quiz.current!;
+        await _reviewLater(quiz);
+        var guard = 0;
+        while (!quiz.quizFinished) {
+          expect(guard++, lessThan(50), reason: 'no endless loop');
+          await _gotIt(quiz);
+        }
+        expect(quiz.completedCount, 6);
+        expect(quiz.score, 5, reason: 'repeat answer ($missed) does not score');
+        expect(quiz.remainingCount, 0);
+        expect(quiz.reviewLaterCount, 0);
+      }
     });
 
     test('only works after the answer is revealed', () async {
@@ -281,6 +338,89 @@ void main() {
       expect(settings.sessionSize, SettingsProvider.maxSessionSize);
       await settings.setSessionSize(0);
       expect(settings.sessionSize, SettingsProvider.minSessionSize);
+    });
+  });
+}
+
+void _pinyinToHanziTests() {
+  Vocabulary v(int id, String hanzi, String pinyin) => Vocabulary(
+    id: id,
+    hanzi: hanzi,
+    pinyin: pinyin,
+    meaning: 'm$id',
+    category: 'test',
+  );
+
+  QuizProvider start(List<Vocabulary> deck, int seed) {
+    final quiz = QuizProvider(
+      recordReview: (_, _) async {},
+      random: Random(seed),
+    );
+    quiz.startNewQuiz(
+      deck,
+      module: QuizModule.pinyinToHanziAndMeaning,
+      answerMode: QuizAnswerMode.multipleChoice,
+      sessionSize: null,
+    );
+    return quiz;
+  }
+
+  group('pinyinToHanzi options', () {
+    test('no duplicate Hanzi and the answer is always present', () {
+      final deck = [
+        v(1, '是', 'shì'),
+        v(2, '是', 'shì'), // duplicate row
+        v(3, '事', 'shì'), // homophone
+        v(4, '市', 'shì'), // homophone
+        v(5, '你', 'nǐ'),
+        v(6, '好', 'hǎo'),
+        v(7, '你', 'nǐ'),
+      ];
+      for (var seed = 0; seed < 30; seed++) {
+        final quiz = start(deck, seed);
+        for (var i = 0; i < deck.length; i++) {
+          final hanzi = quiz.options.map((o) => o.displayHanzi).toList();
+          expect(hanzi.toSet().length, hanzi.length);
+          expect(quiz.options.any((o) => identical(o, quiz.current)), isTrue);
+          expect(quiz.options.map(quiz.optionText).toList(), hanzi);
+          quiz.passQuestion();
+        }
+      }
+    });
+
+    test('homophone distractors can appear', () {
+      final deck = [v(1, '是', 'shì'), v(2, '事', 'shì'), v(3, '市', 'shì')];
+      var seen = false;
+      for (var seed = 0; seed < 10 && !seen; seed++) {
+        final quiz = start(deck, seed);
+        seen = quiz.options.any(
+          (o) => !identical(o, quiz.current) && o.pinyin == quiz.current!.pinyin,
+        );
+      }
+      expect(seen, isTrue);
+    });
+
+    test('a small or all-duplicate pool does not crash', () {
+      final quiz = start([v(1, '是', 'shì'), v(2, '是', 'shì')], 1);
+      expect(quiz.options.length, 1);
+      expect(quiz.current, isNotNull);
+      final single = start([v(1, '你', 'nǐ')], 1);
+      expect(single.options.length, 1);
+    });
+
+    test('other modules keep their option format', () {
+      final quiz = QuizProvider(
+        recordReview: (_, _) async {},
+        random: Random(1),
+      );
+      quiz.startNewQuiz(
+        [v(1, 'a', 'x'), v(2, 'a', 'y')],
+        module: QuizModule.hanziToPinyinAndMeaning,
+        answerMode: QuizAnswerMode.multipleChoice,
+        sessionSize: 20,
+      );
+      expect(quiz.options.length, 2);
+      expect(quiz.optionText(quiz.options.first), contains('—'));
     });
   });
 }

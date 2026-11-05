@@ -358,6 +358,16 @@ class _FinishedCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
+              if (quiz.repeatedWordCount > 0) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '${quiz.repeatedWordCount} '
+                  '${quiz.repeatedWordCount == 1 ? 'word was' : 'words were'} '
+                  'repeated with Review Later.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
               const SizedBox(height: 24),
               FilledButton(
                 onPressed: onRestart,
@@ -466,8 +476,14 @@ class _QuestionView extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: quiz.answered ? null : () => onEvaluate(false),
-                      child: const Text('Review Later'),
+                      onPressed: quiz.answered || !quiz.canReviewLater
+                          ? null
+                          : () => onEvaluate(false),
+                      child: Text(
+                        quiz.canReviewLater
+                            ? 'Review Later'
+                            : 'Review limit reached',
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -532,7 +548,8 @@ class _ProgressStrip extends StatelessWidget {
                 Text(
                   quiz.isEndless
                       ? '${quiz.completedCount} answered'
-                      : '${quiz.completedCount}/${quiz.totalCount}',
+                      : '${quiz.completedCount}/${quiz.totalCount}'
+                            '${quiz.repeatTotal > 0 ? ' +${quiz.repeatTotal} repeats' : ''}',
                   style: Theme.of(context).textTheme.titleMedium
                       ?.copyWith(color: colors.primary),
                 ),
@@ -711,6 +728,20 @@ class _PromptCard extends StatelessWidget {
                       ?.copyWith(fontSize: textSize, height: 1.08),
                 ),
               ),
+              if (module == QuizModule.pinyinToHanziAndMeaning &&
+                  !showDetails &&
+                  current.meaning.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  current.meaning,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+                ),
+              ],
               if (showDetails) ...[
                 const SizedBox(height: 16),
                 Wrap(
