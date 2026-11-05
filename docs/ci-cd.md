@@ -84,3 +84,34 @@ Artifacts are also kept as workflow artifacts for **7 days** (`retention-days: 7
 - The APK is signed with the debug key (see [Getting started](getting-started.md#build-release-artifacts)) and uses the template application id, so it is suitable for testing and side-loading, not for store distribution.
 - macOS and iOS are not built.
 - Version numbers in release tags (`v1.0.<timestamp>`) are independent of `version:` in `pubspec.yaml`.
+
+## Android release signing
+
+Android only installs an APK over an existing one if both use the **same signing key** and the new `versionCode` is higher. The workflow therefore signs with a fixed keystore and passes `--build-number=$((10 + github.run_number))` (the `10` offset exceeds the `1` used by earlier builds).
+
+### Create the keystore (once)
+
+```bash
+keytool -genkeypair -v -keystore release.jks -alias mandarin \
+  -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 release.jks > release.jks.b64
+```
+
+### GitHub Secrets (Settings → Secrets and variables → Actions)
+
+| Secret | Value |
+|---|---|
+| `KEYSTORE_BASE64` | contents of `release.jks.b64` |
+| `KEYSTORE_PASSWORD` | the keystore password |
+| `KEY_PASSWORD` | the key password |
+| `KEY_ALIAS` | `mandarin` (the alias used above) |
+
+The job fails if any secret is empty, writes `android/app/release.jks` and `android/key.properties` only for the build, verifies the signature (printing the certificate SHA-256) and always deletes both files afterwards.
+
+> **Back up `release.jks` and its passwords outside GitHub** (password manager, offline drive). If the key is lost, no future APK can update existing installs. Never commit it; `.gitignore` excludes `*.jks`, `*.keystore`, `*.b64` and `android/key.properties`.
+
+Local release builds without `android/key.properties` fall back to the debug key and print a warning.
+
+### One-time uninstall
+
+Installs signed with the old debug key must be uninstalled once before the first release-signed APK can be installed. Local data is lost at that point.
