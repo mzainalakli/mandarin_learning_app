@@ -1108,7 +1108,10 @@ class _AddToLibraryBottomSheetState extends State<_AddToLibraryBottomSheet> {
   Widget build(BuildContext context) {
     final isSmallScreen = Responsive.isMobile(context);
 
-    return DraggableScrollableSheet(
+    // Keep the sheet above the keyboard, like the Library sheet does.
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: DraggableScrollableSheet(
       initialChildSize: isSmallScreen ? 0.6 : 0.4,
       minChildSize: 0.3,
       maxChildSize: 0.8,
@@ -1130,7 +1133,12 @@ class _AddToLibraryBottomSheetState extends State<_AddToLibraryBottomSheet> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 + Responsive.bottomSafeInset(context),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1242,6 +1250,7 @@ class _AddToLibraryBottomSheetState extends State<_AddToLibraryBottomSheet> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
