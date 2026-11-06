@@ -162,8 +162,9 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
   Widget build(BuildContext context) {
     final quiz = context.watch<QuizProvider>();
     final settings = context.watch<SettingsProvider>();
-    final bp = Responsive.getBreakpoint(context);
-    final isMobile = bp == AppBreakpoint.mobile;
+    // Phones (portrait or landscape) get the compact app bar and spacing;
+    // width alone would treat a landscape phone as a tablet.
+    final isMobile = Responsive.isCompact(context);
     final needsFourWords =
         widget.answerMode == QuizAnswerMode.multipleChoice &&
         !quiz.quizFinished &&
@@ -241,8 +242,15 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
         ),
         body: LayoutBuilder(
           builder: (context, constraints) {
-            final maxWidth = Responsive.getContentMaxWidth(context);
-            final horizontalPadding = isMobile ? 16.0 : 24.0;
+            final maxWidth = isMobile
+                ? double.infinity
+                : Responsive.getContentMaxWidth(context);
+            final screenPadding = isMobile
+                ? const EdgeInsets.symmetric(
+                    horizontal: Responsive.compactCardPadding,
+                    vertical: Responsive.compactGap,
+                  )
+                : const EdgeInsets.symmetric(horizontal: 24, vertical: 16);
             final content = !_loaded
                 ? const Center(child: CircularProgressIndicator())
                 : quiz.quizFinished && quiz.totalCount > 0
@@ -272,15 +280,15 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
                     onEvaluate: _evaluateAnswer,
                     onReveal: () => context.read<QuizProvider>().revealAnswer(),
                   );
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: horizontalPadding,
-                    vertical: isMobile ? 12 : 16,
-                  ),
-                  child: content,
+            // This page is pushed above MainScreen, so it does not inherit
+            // its SafeArea. Under edge-to-edge (Android 15+) the bottom
+            // buttons would sit under the system navigation bar.
+            return SafeArea(
+              top: false,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxWidth),
+                  child: Padding(padding: screenPadding, child: content),
                 ),
               ),
             );
@@ -414,21 +422,142 @@ class _QuestionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (Responsive.isCompact(context)) return _buildCompact(context);
+    return _buildRegular(context);
+  }
+
+  String get _questionMode => switch (module) {
+    QuizModule.pinyinToHanziAndMeaning => 'Listen and recall the word',
+    QuizModule.hanziToPinyinAndMeaning =>
+      'Read the Hanzi and recall pronunciation',
+    QuizModule.hanziToMeaning => 'Read the Hanzi and recall the meaning',
+    QuizModule.zhuyinByHanzi => 'Read the Hanzi and recall Zhuyin',
+    QuizModule.hanziByZhuyin => 'Read the Zhuyin and recall Hanzi',
+  };
+
+  bool get _showDetails =>
+      quiz.revealed ||
+      (quiz.answered && answerMode == QuizAnswerMode.multipleChoice);
+
+  /// Phone layout. Portrait: status line, prompt card that fills the free
+  /// height, answers, then a fixed-height action block at the bottom.
+  /// Landscape: prompt + status on the left, answers + actions on the right.
+  Widget _buildCompact(BuildContext context) {
+    final gap = Responsive.gap(context);
+    final status = _CompactStatusBar(
+      quiz: quiz,
+      settings: settings,
+      remainingSeconds: remainingSeconds,
+    );
+    final prompt = _PromptCard(
+      current: quiz.current!,
+      module: module,
+      feedbackTick: feedbackTick,
+      lastAnswerCorrect: lastAnswerCorrect,
+      onSpeak: onSpeak,
+      questionMode: _questionMode,
+      showDetails: _showDetails,
+      compact: true,
+    );
+    final content = _compactContent();
+    final actions = _CompactActions(
+      quiz: quiz,
+      answerMode: answerMode,
+      onReveal: onReveal,
+      onEvaluate: onEvaluate,
+      onNext: onNext,
+    );
+
+    if (Responsive.useSplitLayout(context)) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 5,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                status,
+                SizedBox(height: gap),
+                Expanded(child: prompt),
+              ],
+            ),
+          ),
+          SizedBox(width: Responsive.regularGap),
+          Expanded(
+            flex: 6,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Scrolls only as a safety net when the answers do not fit.
+                Expanded(child: SingleChildScrollView(child: content)),
+                SizedBox(height: gap),
+                actions,
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final height = math.max(
+          constraints.maxHeight,
+          Responsive.quizMinContentHeight(context),
+        );
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints.tightFor(height: height),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                status,
+                SizedBox(height: gap),
+                Expanded(child: prompt),
+                SizedBox(height: gap),
+                // Long answers scroll inside this band instead of squeezing
+                // the prompt card or overflowing.
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: height * Responsive.quizContentMaxFraction,
+                  ),
+                  child: SingleChildScrollView(child: content),
+                ),
+                SizedBox(height: gap),
+                actions,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _compactContent() {
+    if (answerMode == QuizAnswerMode.multipleChoice) {
+      return _MultipleChoiceOptions(
+        options: quiz.options,
+        answered: quiz.answered,
+        correctIndex: quiz.correctIndex(),
+        selectedIndex: quiz.selectedIndex,
+        optionText: quiz.optionText,
+        onTap: onSubmit,
+        compact: true,
+      );
+    }
+    if (quiz.revealed) {
+      return _AnswerCard(quiz: quiz, feedbackTick: feedbackTick, compact: true);
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildRegular(BuildContext context) {
     final current = quiz.current!;
     final bp = Responsive.getBreakpoint(context);
     final isMobile = bp == AppBreakpoint.mobile;
-
-    final questionMode = switch (module) {
-      QuizModule.pinyinToHanziAndMeaning => 'Listen and recall the word',
-      QuizModule.hanziToPinyinAndMeaning =>
-        'Read the Hanzi and recall pronunciation',
-      QuizModule.hanziToMeaning => 'Read the Hanzi and recall the meaning',
-      QuizModule.zhuyinByHanzi => 'Read the Hanzi and recall Zhuyin',
-      QuizModule.hanziByZhuyin => 'Read the Zhuyin and recall Hanzi',
-    };
-    final showDetails =
-        quiz.revealed ||
-        (quiz.answered && answerMode == QuizAnswerMode.multipleChoice);
+    final questionMode = _questionMode;
+    final showDetails = _showDetails;
 
     return SingleChildScrollView(
       child: Column(
@@ -509,6 +638,125 @@ class _QuestionView extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// One-line session summary with a thin progress bar (phones).
+class _CompactStatusBar extends StatelessWidget {
+  const _CompactStatusBar({
+    required this.quiz,
+    required this.settings,
+    required this.remainingSeconds,
+  });
+  final QuizProvider quiz;
+  final SettingsProvider settings;
+  final int remainingSeconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final parts = <String>[
+      if (quiz.isEndless) ...[
+        'Round ${quiz.round}',
+        '${quiz.completedCount} answered',
+      ] else
+        '${quiz.completedCount}/${quiz.totalCount}'
+            '${quiz.repeatTotal > 0 ? ' +${quiz.repeatTotal} repeats' : ''}',
+      'Remaining ${quiz.remainingCount}',
+      if (quiz.reviewLaterCount > 0) 'Passed ${quiz.reviewLaterCount}',
+      if (settings.isTimerEnabled) 'Timer ${remainingSeconds}s',
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          parts.join(' · '),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelLarge
+              ?.copyWith(color: colors.primary, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: Responsive.compactGap / 2),
+        LinearProgressIndicator(
+          value: quiz.progressFraction.clamp(0.0, 1.0),
+          minHeight: 4,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ],
+    );
+  }
+}
+
+/// Bottom action block of the phone layout. Always at least
+/// [Responsive.actionBlockMinHeight] tall so the layout does not jump when a
+/// button appears.
+class _CompactActions extends StatelessWidget {
+  const _CompactActions({
+    required this.quiz,
+    required this.answerMode,
+    required this.onReveal,
+    required this.onEvaluate,
+    required this.onNext,
+  });
+  final QuizProvider quiz;
+  final QuizAnswerMode answerMode;
+  final VoidCallback onReveal;
+  final ValueChanged<bool> onEvaluate;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    const size = Size(0, Responsive.minTouchTarget);
+    final Widget? child;
+    if (answerMode == QuizAnswerMode.multipleChoice) {
+      child = quiz.answered
+          ? FilledButton.icon(
+              style: FilledButton.styleFrom(minimumSize: size),
+              onPressed: onNext,
+              icon: const Icon(Icons.arrow_forward),
+              label: const Text('Next word'),
+            )
+          : null;
+    } else if (!quiz.revealed) {
+      child = FilledButton.icon(
+        style: FilledButton.styleFrom(minimumSize: size),
+        onPressed: onReveal,
+        icon: const Icon(Icons.visibility_outlined),
+        label: const Text('Show answer'),
+      );
+    } else {
+      child = Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(minimumSize: size),
+              onPressed: quiz.answered || !quiz.canReviewLater
+                  ? null
+                  : () => onEvaluate(false),
+              child: Text(
+                quiz.canReviewLater ? 'Review Later' : 'Review limit reached',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+          const SizedBox(width: Responsive.compactCardPadding),
+          Expanded(
+            child: FilledButton(
+              style: FilledButton.styleFrom(minimumSize: size),
+              onPressed: quiz.answered ? null : () => onEvaluate(true),
+              child: const Text('Got It'),
+            ),
+          ),
+        ],
+      );
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minHeight: Responsive.actionBlockMinHeight,
+      ),
+      child: Align(alignment: Alignment.center, child: child),
     );
   }
 }
@@ -631,6 +879,7 @@ class _PromptCard extends StatelessWidget {
     required this.questionMode,
     required this.showDetails,
     this.showAnswerAction,
+    this.compact = false,
   });
 
   final Vocabulary current;
@@ -641,6 +890,9 @@ class _PromptCard extends StatelessWidget {
   final String questionMode;
   final bool showDetails;
   final Widget? showAnswerAction;
+
+  /// Phone layout: fills the height it is given and sizes the prompt to it.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -655,22 +907,82 @@ class _PromptCard extends StatelessWidget {
         current.zhuyin ?? current.displayPronunciation,
       _ => current.displayHanzi,
     };
-    final compact = maxWidth < 560;
-    final wide = maxWidth >= 900;
-    final textSize = isHanziLed
-        ? compact
-              ? 50.0
-              : wide
-              ? 76.0
-              : 64.0
-        : compact
-        ? 30.0
-        : wide
-        ? 44.0
-        : 36.0;
+    final regularTextSize = Responsive.promptFontSize(
+      width: maxWidth,
+      availableHeight: double.infinity,
+      hanziLed: isHanziLed,
+    );
+
+    final header = Row(
+      children: [
+        Expanded(
+          child: Text(
+            questionMode,
+            maxLines: compact ? 2 : null,
+            overflow: compact ? TextOverflow.ellipsis : null,
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(color: colors.onSurfaceVariant),
+          ),
+        ),
+        IconButton.filledTonal(
+          onPressed: onSpeak,
+          icon: const Icon(Icons.volume_up_outlined),
+          tooltip: 'Pronounce',
+        ),
+      ],
+    );
+
+    Widget promptBlock(double textSize) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 260),
+          child: Text(
+            promptText,
+            key: ValueKey('$promptText-$feedbackTick'),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.displayMedium
+                ?.copyWith(fontSize: textSize, height: 1.08),
+          ),
+        ),
+        if (module == QuizModule.pinyinToHanziAndMeaning &&
+            !showDetails &&
+            current.meaning.trim().isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            current.meaning,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(color: colors.onSurfaceVariant),
+          ),
+        ],
+        if (showDetails) ...[
+          const SizedBox(height: 16),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _InfoBadge(label: 'Hanzi', value: current.displayHanzi),
+              _InfoBadge(
+                label: 'Pronunciation',
+                value: current.displayPronunciation,
+              ),
+              _InfoBadge(label: 'Meaning', value: current.meaning),
+            ],
+          ),
+        ] else if (showAnswerAction != null) ...[
+          const SizedBox(height: 18),
+          Align(alignment: Alignment.center, child: showAnswerAction),
+        ],
+      ],
+    );
 
     return ResponsiveCard(
       elevation: 2,
+      margin: compact ? EdgeInsets.zero : null,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 260),
@@ -698,71 +1010,43 @@ class _PromptCard extends StatelessWidget {
                 ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      questionMode,
-                      style: Theme.of(context).textTheme.titleMedium
-                          ?.copyWith(color: colors.onSurfaceVariant),
-                    ),
-                  ),
-                  IconButton.filledTonal(
-                    onPressed: onSpeak,
-                    icon: const Icon(Icons.volume_up_outlined),
-                    tooltip: 'Pronounce',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                child: Text(
-                  promptText,
-                  key: ValueKey('$promptText-$feedbackTick'),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.displayMedium
-                      ?.copyWith(fontSize: textSize, height: 1.08),
-                ),
-              ),
-              if (module == QuizModule.pinyinToHanziAndMeaning &&
-                  !showDetails &&
-                  current.meaning.trim().isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  current.meaning,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
-                ),
-              ],
-              if (showDetails) ...[
-                const SizedBox(height: 16),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
+          padding: EdgeInsets.all(compact ? Responsive.compactGap : 20),
+          child: compact
+              ? Column(
                   children: [
-                    _InfoBadge(label: 'Hanzi', value: current.displayHanzi),
-                    _InfoBadge(
-                      label: 'Pronunciation',
-                      value: current.displayPronunciation,
+                    header,
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) =>
+                            SingleChildScrollView(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight,
+                                ),
+                                child: Center(
+                                  child: promptBlock(
+                                    Responsive.promptFontSize(
+                                      width: maxWidth,
+                                      availableHeight: showDetails
+                                          ? constraints.maxHeight * 0.6
+                                          : constraints.maxHeight,
+                                      hanziLed: isHanziLed,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ),
                     ),
-                    _InfoBadge(label: 'Meaning', value: current.meaning),
+                  ],
+                )
+              : Column(
+                  children: [
+                    header,
+                    const SizedBox(height: 16),
+                    promptBlock(regularTextSize),
                   ],
                 ),
-              ] else if (showAnswerAction != null) ...[
-                const SizedBox(height: 18),
-                Align(alignment: Alignment.center, child: showAnswerAction),
-              ],
-            ],
-          ),
         ),
       ),
     );
@@ -809,19 +1093,25 @@ class _InfoBadge extends StatelessWidget {
 }
 
 class _AnswerCard extends StatelessWidget {
-  const _AnswerCard({required this.quiz, required this.feedbackTick});
+  const _AnswerCard({
+    required this.quiz,
+    required this.feedbackTick,
+    this.compact = false,
+  });
   final QuizProvider quiz;
   final int feedbackTick;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => AnimatedSwitcher(
     duration: const Duration(milliseconds: 260),
     child: ResponsiveCard(
       key: ValueKey('answer-$feedbackTick'),
+      margin: compact ? EdgeInsets.zero : null,
       color: Theme.of(context).colorScheme.secondaryContainer,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(compact ? Responsive.compactGap : 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -829,12 +1119,12 @@ class _AnswerCard extends StatelessWidget {
               'Answer revealed',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: compact ? Responsive.compactGap : 12),
             Text(
               quiz.answerText,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium
-                  ?.copyWith(fontSize: 28, height: 1.35),
+                  ?.copyWith(fontSize: compact ? 22 : 28, height: 1.35),
             ),
           ],
         ),
@@ -851,8 +1141,10 @@ class _MultipleChoiceOptions extends StatelessWidget {
     required this.selectedIndex,
     required this.optionText,
     required this.onTap,
+    this.compact = false,
   });
 
+  final bool compact;
   final List<Vocabulary> options;
   final bool answered;
   final int correctIndex;
@@ -883,7 +1175,7 @@ class _MultipleChoiceOptions extends StatelessWidget {
           : colors.outlineVariant.withValues(alpha: 0.7);
 
       return Padding(
-        padding: const EdgeInsets.only(bottom: 10),
+        padding: EdgeInsets.only(bottom: compact ? Responsive.compactGap : 10),
         child: TweenAnimationBuilder<double>(
           tween: Tween(
             begin: 0,
@@ -908,9 +1200,12 @@ class _MultipleChoiceOptions extends StatelessWidget {
               onTap: answered ? null : () => onTap(index),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
-                padding: const EdgeInsets.symmetric(
+                constraints: const BoxConstraints(
+                  minHeight: Responsive.minTouchTarget,
+                ),
+                padding: EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 14,
+                  vertical: compact ? 10 : 14,
                 ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),

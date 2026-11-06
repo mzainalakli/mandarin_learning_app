@@ -147,7 +147,12 @@ class _VocabDetailModalState extends State<VocabDetailModal> {
             Expanded(
               child: ListView(
                 controller: scrollController,
-                padding: const EdgeInsets.all(24),
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  24,
+                  24,
+                  24 + Responsive.bottomSafeInset(context),
+                ),
                 children: [
                   Row(
                     children: [
@@ -324,7 +329,8 @@ class _InfoBadge extends StatelessWidget {
             Icon(icon, size: 16, color: colors.onSurfaceVariant),
             const SizedBox(width: 6),
           ],
-          RichText(
+          Flexible(
+            child: RichText(
             text: TextSpan(
               style: Theme.of(context).textTheme.bodyMedium
                   ?.copyWith(color: colors.onSurface),
@@ -341,6 +347,7 @@ class _InfoBadge extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
               ],
+            ),
             ),
           ),
         ],

@@ -22,6 +22,121 @@ class Responsive {
   static bool isTabletOrDesktop(BuildContext context) => !isMobile(context);
   static bool isMobileOrTablet(BuildContext context) => !isDesktop(context);
 
+  // ── Height / orientation awareness ────────────────────────────────────
+  // Width alone misclassifies phones in landscape (e.g. 915x412 is "tablet").
+  // These helpers add the height and orientation signals.
+
+  /// Below this height the screen is a phone held in landscape (or similar).
+  static const double compactHeightBreakpoint = 480;
+
+  /// Spacing scale used by screens that adapt to the available space.
+  static const double compactGap = 8;
+  static const double regularGap = 16;
+  static const double wideGap = 24;
+
+  /// Card padding scale.
+  static const double compactCardPadding = 12;
+
+  /// Height of the MainScreen header (regular / phone).
+  static const double headerHeight = 72;
+  static const double compactHeaderHeight = 56;
+
+  /// Smallest hanzi / pronunciation prompt sizes the quiz may shrink to.
+  static const double minHanziFontSize = 40;
+  static const double minPronunciationFontSize = 28;
+
+  /// Minimum touch target (Material guideline).
+  static const double minTouchTarget = 48;
+
+  /// Fixed minimum height of the bottom action block on session screens, so
+  /// the layout does not jump when a button appears or disappears.
+  static const double actionBlockMinHeight = 56;
+
+  /// Smallest content height of the portrait quiz layout before it scrolls.
+  static const double quizPortraitMinContentHeight = 560;
+
+  /// Share of the portrait quiz height the answers may use before they scroll.
+  static const double quizContentMaxFraction = 0.55;
+
+  /// [quizPortraitMinContentHeight] grown with the system text scale.
+  static double quizMinContentHeight(BuildContext context) =>
+      quizPortraitMinContentHeight *
+      MediaQuery.textScalerOf(context).scale(16) /
+      16;
+
+  static bool isLandscape(BuildContext context) =>
+      MediaQuery.orientationOf(context) == Orientation.landscape;
+
+  /// Short screen, regardless of width.
+  static bool isCompactHeight(BuildContext context) =>
+      MediaQuery.sizeOf(context).height < compactHeightBreakpoint;
+
+  /// Phone-like layout: narrow (portrait phone) or short (landscape phone).
+  /// A phone in landscape is compact even when it is wider than 850 px.
+  static bool isCompact(BuildContext context) =>
+      isMobile(context) || isCompactHeight(context);
+
+  /// Two-column layout for session-style screens: landscape and short.
+  static bool useSplitLayout(BuildContext context) =>
+      isLandscape(context) && isCompactHeight(context);
+
+  /// Bottom/left/right system insets (gesture bar, 3-button bar, notch).
+  /// Uses viewPadding so it stays stable while the keyboard is open.
+  static EdgeInsets safeInsets(BuildContext context) =>
+      MediaQuery.viewPaddingOf(context);
+
+  /// Extra bottom padding a bottom sheet's content needs so its last item
+  /// clears the system navigation bar. Zero while the keyboard is open (the
+  /// keyboard already covers the bar, and sheets pad for it separately).
+  static double bottomSafeInset(BuildContext context) =>
+      MediaQuery.viewInsetsOf(context).bottom > 0
+      ? 0
+      : MediaQuery.viewPaddingOf(context).bottom;
+
+  /// Vertical gap between blocks.
+  static double gap(BuildContext context) {
+    if (isCompact(context)) return compactGap;
+    return isMobileOrTablet(context) ? regularGap : wideGap;
+  }
+
+  /// Outer padding of scrolling pages (Dashboard).
+  static double pagePadding(BuildContext context) =>
+      isCompact(context) ? compactCardPadding : wideGap;
+
+  /// Gap between major sections of a page.
+  static double sectionGap(BuildContext context) =>
+      isCompact(context) ? regularGap : wideGap;
+
+  /// Padding of gradient content blocks that sit inside a ResponsiveCard.
+  static double innerCardPadding(BuildContext context) =>
+      isCompact(context) ? compactCardPadding : 20;
+
+  /// Padding inside cards.
+  static double cardPadding(BuildContext context) {
+    if (isCompact(context)) return compactCardPadding;
+    return switch (getBreakpoint(context)) {
+      AppBreakpoint.mobile => 16,
+      AppBreakpoint.tablet => 20,
+      AppBreakpoint.desktop => 24,
+    };
+  }
+
+  /// Font size of the quiz prompt: the usual width-based size, shrunk to fit
+  /// [availableHeight] but never below the readable minimum.
+  static double promptFontSize({
+    required double width,
+    required double availableHeight,
+    required bool hanziLed,
+  }) {
+    final compact = width < 560;
+    final wide = width >= 900;
+    final base = hanziLed
+        ? (compact ? 50.0 : (wide ? 76.0 : 64.0))
+        : (compact ? 30.0 : (wide ? 44.0 : 36.0));
+    final min = hanziLed ? minHanziFontSize : minPronunciationFontSize;
+    return (availableHeight * 0.3).clamp(min, base).toDouble();
+  }
+
   static double getContentMaxWidth(BuildContext context) {
     final bp = getBreakpoint(context);
     switch (bp) {
@@ -176,6 +291,9 @@ class ResponsiveSidebar extends StatelessWidget {
 }
 
 class BentoGrid extends StatelessWidget {
+  /// Card height in a single-column grid at the default text scale.
+  static const double singleColumnCardExtent = 280;
+
   const BentoGrid({
     super.key,
     required this.children,
@@ -204,7 +322,15 @@ class BentoGrid extends StatelessWidget {
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: spacing,
             mainAxisSpacing: runSpacing,
-            childAspectRatio: crossAxisCount == 1 ? 1.2 : 1.1,
+            // One column (phones): a fixed height that grows with the system
+            // text scale. A ratio of the width would make cards huge on wide
+            // phones and clip text on large font settings.
+            childAspectRatio: 1.1, // ignored when mainAxisExtent is set
+            mainAxisExtent: crossAxisCount == 1
+                ? singleColumnCardExtent *
+                      MediaQuery.textScalerOf(context).scale(16) /
+                      16
+                : null,
           ),
           itemCount: children.length,
           itemBuilder: (context, index) => children[index],
@@ -236,14 +362,8 @@ class ResponsiveCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bp = Responsive.getBreakpoint(context);
     final cardPadding =
-        padding ??
-        switch (bp) {
-          AppBreakpoint.mobile => const EdgeInsets.all(16),
-          AppBreakpoint.tablet => const EdgeInsets.all(20),
-          AppBreakpoint.desktop => const EdgeInsets.all(24),
-        };
+        padding ?? EdgeInsets.all(Responsive.cardPadding(context));
 
     final card = Card(
       elevation: elevation,
