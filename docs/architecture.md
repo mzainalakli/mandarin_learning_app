@@ -95,6 +95,26 @@ The Library's "Add words" sheet (`_AddVocabBottomSheet`) keeps its own local sta
 
 [`lib/core/responsive.dart`](../lib/core/responsive.dart) defines `AppBreakpoint { mobile, tablet, desktop }` at 850 px and 1100 px, `Responsive.getContentMaxWidth/Padding/GridCrossAxisCount`, plus two reusable widgets: `ResponsiveCard` and `BentoGrid`. Screens read the breakpoint with `MediaQuery.sizeOf` and choose between layouts (for example the Library shows a single column on phones and a master/detail split on desktop).
 
+**Height and orientation.** Width alone misclassifies a phone in landscape (915x412 is "tablet" by width). `Responsive` therefore also exposes:
+
+| Helper | Meaning |
+|---|---|
+| `isCompactHeight` | height < `compactHeightBreakpoint` (480 px) |
+| `isCompact` | `isMobile || isCompactHeight`: any phone, portrait or landscape |
+| `useSplitLayout` | landscape and compact height: two-column session layout |
+| `gap`, `sectionGap`, `pagePadding`, `cardPadding`, `innerCardPadding` | spacing scale that tightens when compact (tablet/desktop values unchanged) |
+| `promptFontSize` | quiz prompt size from width *and* available height; never below 40 px (hanzi) / 28 px |
+| `bottomSafeInset` | `viewPadding.bottom` (0 while the keyboard is open) for bottom-sheet content |
+| `actionBlockMinHeight`, `minTouchTarget` | fixed minimum height of the quiz action block (no layout jump); 48 dp targets |
+
+Rules:
+
+- Decide phone vs. tablet layouts with `isCompact` / `useSplitLayout`, not with `isMobile` alone. Tablet and desktop (not compact) keep their original layouts.
+- **Safe area.** The app is edge-to-edge (Flutter targets SDK 36, which enforces it). `MainScreen` wraps its body in `SafeArea`; any *pushed* page (`QuizSessionScreen`) must do the same, and bottom-sheet lists add `Responsive.bottomSafeInset` to their bottom padding.
+- **Quiz layout.** Phones in portrait: one-line status (`_CompactStatusBar`), a prompt card that fills the free height (`Expanded`), answers, and a bottom action block of fixed minimum height. The column has a tight height of `max(available, quizMinContentHeight)` inside a `SingleChildScrollView`, so it scrolls only when text is large; answers scroll inside a band capped at `quizContentMaxFraction`. Landscape phones use two columns (prompt + status | answers + actions).
+- **MainScreen header** is 56 dp when compact: menu, title, a search icon that expands inline, the timer toggle and the avatar.
+- Tests: `test/quiz_session_layout_test.dart`, `main_screen_layout_test.dart`, `bottom_sheet_safe_area_test.dart` and `responsive_helpers_test.dart` render these screens at 360x640, 412x915, 640x360, 800x360, 915x412 and 1024x768 (plus text scale 1.3) and check bottom controls against simulated system insets.
+
 ## Theming
 
 `MandarinApp` builds light and dark `ColorScheme`s from a crimson seed (`#9D1F3C`) with a jade tertiary (`#087B68`), then applies one shared `ThemeData` factory (Material 3, rounded cards and buttons, chip/tab/list-tile themes, a custom text scale). `themeMode` is `ThemeMode.system`.
