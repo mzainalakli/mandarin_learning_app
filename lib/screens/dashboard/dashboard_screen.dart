@@ -41,8 +41,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         band: _stats.cumulativeCount(band),
     };
 
+    final sectionGap = Responsive.sectionGap(context);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(Responsive.pagePadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -61,9 +63,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onSettings: () =>
                 menuController.selectMenu(MenuAppController.settingsIndex),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: sectionGap),
           _TOCFLProgressGrid(tocflCounts: tocflCounts),
-          const SizedBox(height: 24),
+          SizedBox(height: sectionGap),
           _PracticeModuleCards(),
         ],
       ),
@@ -119,7 +121,9 @@ class _HeroCard extends StatelessWidget {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.all(28),
+          padding: EdgeInsets.all(
+            Responsive.isCompact(context) ? Responsive.regularGap : 28,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -473,21 +477,27 @@ class _TOCFLBandCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
         ),
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(Responsive.innerCardPadding(context)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  category,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
+                Flexible(
+                  child: Text(
+                    category,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                Container(
+                const SizedBox(width: Responsive.compactGap),
+                Flexible(
+                  child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 4,
@@ -498,19 +508,26 @@ class _TOCFLBandCard extends StatelessWidget {
                   ),
                   child: Text(
                     '$wordCount words',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
+                ),
               ],
             ),
             const Spacer(),
-            Text(
-              wordCount == 0 ? 'Not loaded' : '$wordCount vocabulary items',
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                wordCount == 0 ? 'Not loaded' : '$wordCount vocabulary items',
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+              ),
             ),
             const SizedBox(height: 12),
             LinearProgressIndicator(
@@ -538,16 +555,23 @@ class _PracticeModuleCards extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(
-              'Practice Modules',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
+            Flexible(
+              child: Text(
+                'Practice Modules',
+                style: Theme.of(context).textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
             ),
-            const Spacer(),
-            Text(
-              'Select a module to begin',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+            const SizedBox(width: Responsive.compactGap),
+            Flexible(
+              child: Text(
+                'Select a module to begin',
+                textAlign: TextAlign.end,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ],
@@ -641,7 +665,7 @@ class _ModuleBentoCard extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
       ),
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(Responsive.innerCardPadding(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

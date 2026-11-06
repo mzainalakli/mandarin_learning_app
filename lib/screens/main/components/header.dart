@@ -4,20 +4,32 @@ import 'package:provider/provider.dart';
 import '../../../core/responsive.dart';
 import '../../../providers/settings_provider.dart';
 
-class Header extends StatelessWidget {
+class Header extends StatefulWidget {
   final String title;
   final VoidCallback? onMenuTap;
 
   const Header({super.key, required this.title, this.onMenuTap});
 
   @override
+  State<Header> createState() => _HeaderState();
+}
+
+class _HeaderState extends State<Header> {
+  // Compact layout only: the search field collapses into an icon that
+  // expands it over the title.
+  bool _searching = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isDesktop = Responsive.isDesktop(context);
+    final compact = Responsive.isCompact(context);
 
     return Container(
-      height: 72,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      height: compact ? Responsive.compactHeaderHeight : Responsive.headerHeight,
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? Responsive.compactGap : 24,
+      ),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
@@ -26,43 +38,93 @@ class Header extends StatelessWidget {
           ),
         ),
       ),
-      child: Row(
-        children: [
-          if (!isDesktop)
-            IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: onMenuTap ?? () => Scaffold.of(context).openDrawer(),
-              tooltip: 'Open menu',
-            ),
-          if (!isDesktop) const SizedBox(width: 8),
-          Text(
-            title,
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const Spacer(),
-          const Expanded(child: _SearchField()),
-          const SizedBox(width: 16),
-          const _ThemeToggle(),
-          const SizedBox(width: 8),
-          _ProfileCard(),
-        ],
-      ),
+      child: compact ? _compactRow(context) : _regularRow(context, isDesktop),
     );
   }
+
+  Widget _menuButton() => IconButton(
+    icon: const Icon(Icons.menu),
+    onPressed: widget.onMenuTap ?? () => Scaffold.of(context).openDrawer(),
+    tooltip: 'Open menu',
+  );
+
+  Widget _regularRow(BuildContext context, bool isDesktop) => Row(
+    children: [
+      if (!isDesktop) _menuButton(),
+      if (!isDesktop) const SizedBox(width: 8),
+      Text(
+        widget.title,
+        style: Theme.of(
+          context,
+        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
+      const Spacer(),
+      const Expanded(child: _SearchField()),
+      const SizedBox(width: 16),
+      const _ThemeToggle(),
+      const SizedBox(width: 8),
+      const _ProfileCard(),
+    ],
+  );
+
+  /// Phones: 56 dp tall. Menu, title, search (icon that expands), timer
+  /// toggle and profile avatar are all still reachable.
+  Widget _compactRow(BuildContext context) => Row(
+    children: [
+      _menuButton(),
+      Expanded(
+        child: _searching
+            ? _SearchField(
+                autofocus: true,
+                onClose: () => setState(() => _searching = false),
+              )
+            : Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+      ),
+      if (!_searching) ...[
+        IconButton(
+          icon: const Icon(Icons.search),
+          tooltip: 'Search vocabulary',
+          onPressed: () => setState(() => _searching = true),
+        ),
+        const _ThemeToggle(),
+        const SizedBox(width: Responsive.compactGap),
+        const _ProfileCard(),
+      ],
+    ],
+  );
 }
 
 class _SearchField extends StatelessWidget {
-  const _SearchField();
+  const _SearchField({this.autofocus = false, this.onClose});
+
+  final bool autofocus;
+
+  /// When set, a close button collapses the field (compact header).
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
     return TextField(
+      autofocus: autofocus,
       decoration: InputDecoration(
         hintText: 'Search vocabulary...',
         prefixIcon: Icon(Icons.search, color: colors.onSurfaceVariant),
+        suffixIcon: onClose == null
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Close search',
+                onPressed: onClose,
+              ),
         filled: true,
         fillColor: colors.surfaceContainerHighest.withValues(alpha: 0.5),
         border: OutlineInputBorder(
@@ -119,11 +181,12 @@ class _ProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isDesktop = Responsive.isDesktop(context);
+    final compact = Responsive.isCompact(context);
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: isDesktop ? 16 : 12,
-        vertical: 8,
+        horizontal: compact ? 4 : (isDesktop ? 16 : 12),
+        vertical: compact ? 4 : 8,
       ),
       decoration: BoxDecoration(
         color: colors.surfaceContainerHighest.withValues(alpha: 0.5),
