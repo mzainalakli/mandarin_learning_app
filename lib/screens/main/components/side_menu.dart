@@ -25,6 +25,12 @@ class _SideMenuState extends State<SideMenu> {
       index: 1,
     ),
     _MenuItem(
+      title: 'Statistics',
+      icon: Icons.insights_outlined,
+      selectedIcon: Icons.insights,
+      index: MenuAppController.statsIndex,
+    ),
+    _MenuItem(
       title: 'Bopomofo Training',
       icon: Icons.translate_outlined,
       selectedIcon: Icons.translate,
@@ -177,7 +183,6 @@ class _SideMenuState extends State<SideMenu> {
       ),
     );
   }
-
 }
 
 class _MenuItem {
