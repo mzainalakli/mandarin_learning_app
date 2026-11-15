@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:csv/csv.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -6,8 +8,11 @@ import 'package:sqflite/sqflite.dart';
 
 import '../models/vocab_stats.dart';
 import '../models/vocabulary.dart';
+import '../models/deck_filter.dart';
 import '../models/library_list.dart';
+import '../models/review_event.dart';
 import '../utils/pinyin_zhuyin.dart';
+import 'leitner.dart';
 
 class DatabaseHelper {
   DatabaseHelper._();
@@ -30,13 +35,27 @@ class DatabaseHelper {
     await _createTables(db);
   }
 
+  /// Opens (and migrates) the database file at [path]. Tests only.
+  @visibleForTesting
+  Future<Database> openAtPathForTest(String path) async {
+    _db = await _openAt(path);
+    return _db!;
+  }
+
+  /// Forgets the open database so the next access reopens it. Tests only.
+  @visibleForTesting
+  void resetForTest() => _db = null;
+
   Future<Database> _initDb() async {
     final dbPath = await databaseFactory.getDatabasesPath();
-    final path = p.join(dbPath, 'mandarin.db');
+    return _openAt(p.join(dbPath, 'mandarin.db'));
+  }
+
+  Future<Database> _openAt(String path) {
     return databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 7,
+        version: 8,
         onCreate: (db, version) async {
           await _createTables(db);
           await _seedDatabase(db);
@@ -73,6 +92,11 @@ class DatabaseHelper {
           if (oldVersion < 7) {
             await _createLibraryTables(db);
           }
+          if (oldVersion < 8) {
+            // Additive only: new tables plus a backfill from the old totals.
+            await _createStatsTables(db);
+            await _backfillProgress(db);
+          }
         },
       ),
     );
@@ -94,6 +118,83 @@ class DatabaseHelper {
       )
     ''');
     await _createLibraryTables(db);
+    await _createStatsTables(db);
+  }
+
+  /// Answer history and per-word schedule. Foreign keys are declared for
+  /// documentation only: `PRAGMA foreign_keys` is off in this app, so
+  /// [deleteVocab] and [resetAndReloadEnglishVocabulary] clean up explicitly.
+  Future<void> _createStatsTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS review_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        vocab_id INTEGER NOT NULL,
+        ts INTEGER NOT NULL,
+        day INTEGER NOT NULL,
+        module TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        correct INTEGER NOT NULL,
+        is_first_attempt INTEGER NOT NULL,
+        session_id INTEGER NOT NULL,
+        response_ms INTEGER,
+        outcome TEXT NOT NULL,
+        FOREIGN KEY (vocab_id) REFERENCES vocabularies(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_events_vocab_ts ON review_events(vocab_id, ts)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_events_ts ON review_events(ts)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_events_day ON review_events(day)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS vocab_progress (
+        vocab_id INTEGER PRIMARY KEY,
+        box INTEGER NOT NULL DEFAULT 0,
+        next_due INTEGER NOT NULL,
+        first_attempts INTEGER NOT NULL DEFAULT 0,
+        first_correct INTEGER NOT NULL DEFAULT 0,
+        wrong_streak INTEGER NOT NULL DEFAULT 0,
+        last_first_ts INTEGER,
+        FOREIGN KEY (vocab_id) REFERENCES vocabularies(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_progress_due ON vocab_progress(next_due)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_progress_box ON vocab_progress(box)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_vocab_category ON vocabularies(category)',
+    );
+  }
+
+  /// Accuracy at or above which a word with old totals starts in
+  /// [legacyBackfillGoodBox]; below it the word starts in box 0.
+  static const legacyBackfillMinAccuracy = 0.8;
+  static const legacyBackfillGoodBox = 2;
+
+  /// Gives words that already have review totals a starting schedule so they
+  /// are not treated as unseen. Insert-only; never touches existing data.
+  Future<void> _backfillProgress(Database db) async {
+    await db.rawInsert(
+      '''
+      INSERT OR IGNORE INTO vocab_progress (vocab_id, box, next_due)
+      SELECT id,
+             CASE WHEN correctCount * 1.0 / reviewCount >= ? THEN ? ELSE 0 END,
+             ?
+      FROM vocabularies WHERE reviewCount > 0
+    ''',
+      [
+        legacyBackfillMinAccuracy,
+        legacyBackfillGoodBox,
+        DateTime.now().toUtc().millisecondsSinceEpoch,
+      ],
+    );
   }
 
   Future<void> _createLibraryTables(Database db) async {
@@ -152,6 +253,8 @@ class DatabaseHelper {
   Future<void> resetAndReloadEnglishVocabulary() async {
     final db = await database;
     await db.execute('DELETE FROM vocabularies');
+    await db.execute('DELETE FROM review_events');
+    await db.execute('DELETE FROM vocab_progress');
     await _seedDatabase(db);
   }
 
@@ -370,8 +473,21 @@ class DatabaseHelper {
     return rows.map((r) => r['vocab_id'] as int).toSet();
   }
 
-  Future<int> deleteVocab(int id) async =>
-      (await database).delete('vocabularies', where: 'id = ?', whereArgs: [id]);
+  /// Deletes the word together with its answer history, schedule and
+  /// library entries (foreign keys are not enforced, so this is explicit).
+  Future<int> deleteVocab(int id) async {
+    final db = await database;
+    return db.transaction((txn) async {
+      for (final table in const [
+        'review_events',
+        'vocab_progress',
+        'library_vocab_items',
+      ]) {
+        await txn.delete(table, where: 'vocab_id = ?', whereArgs: [id]);
+      }
+      return txn.delete('vocabularies', where: 'id = ?', whereArgs: [id]);
+    });
+  }
 
   Future<void> insertBatch(List<Vocabulary> vocabs) async {
     if (vocabs.isEmpty) return;
@@ -393,6 +509,56 @@ class DatabaseHelper {
     ''',
       [DateTime.now().toIso8601String(), id],
     );
+  }
+
+  /// Saves one answer atomically: the legacy totals on the word (every
+  /// answer, as before), the event row, and - for a first attempt only - the
+  /// Leitner state in `vocab_progress`.
+  Future<void> recordReview(ReviewEvent event) async {
+    final db = await database;
+    final nowMs = event.timestamp.toUtc().millisecondsSinceEpoch;
+    await db.transaction((txn) async {
+      await txn.rawUpdate(
+        '''
+        UPDATE vocabularies
+        SET reviewCount = reviewCount + 1,
+            correctCount = correctCount + ?,
+            lastReviewed = ?
+        WHERE id = ?
+      ''',
+        [
+          event.correct ? 1 : 0,
+          event.timestamp.toIso8601String(),
+          event.vocabId,
+        ],
+      );
+      await txn.insert('review_events', event.toMap());
+      if (!event.isFirstAttempt) return;
+
+      final rows = await txn.query(
+        'vocab_progress',
+        where: 'vocab_id = ?',
+        whereArgs: [event.vocabId],
+      );
+      final old = rows.isEmpty ? null : rows.first;
+      final state = Leitner.next(
+        box: old?['box'] as int?,
+        nextDue: old?['next_due'] as int?,
+        wrongStreak: (old?['wrong_streak'] as int?) ?? 0,
+        correct: event.correct,
+        nowMs: nowMs,
+      );
+      await txn.insert('vocab_progress', {
+        'vocab_id': event.vocabId,
+        'box': state.box,
+        'next_due': state.nextDue,
+        'first_attempts': ((old?['first_attempts'] as int?) ?? 0) + 1,
+        'first_correct':
+            ((old?['first_correct'] as int?) ?? 0) + (event.correct ? 1 : 0),
+        'wrong_streak': state.wrongStreak,
+        'last_first_ts': nowMs,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+    });
   }
 
   Future<List<Vocabulary>> getVocabulariesByCategory(
@@ -440,6 +606,10 @@ class DatabaseHelper {
     );
     return maps.map((m) => m['category'] as String).toList();
   }
+
+  /// Public view of the cumulative TOCFL bands (A2 = A1 + A2, ...).
+  static List<String> cumulativeCategoriesFor(String category) =>
+      _cumulativeCategoriesFor(category);
 
   static List<String> _cumulativeCategoriesFor(String category) {
     const order = [
@@ -518,6 +688,139 @@ class DatabaseHelper {
     return vocabs;
   }
 
+  // ===== DECK CANDIDATES (weak / due selection) =====
+
+  /// Weak = recently missed, or still in the lowest box after a miss, or a
+  /// word that only has old totals and started in box 0 (see migration).
+  static String get _weakPredicate =>
+      '(p.wrong_streak > 0 OR '
+      '(p.first_attempts > p.first_correct AND p.box <= ${Leitner.weakMaxBox}) OR '
+      '(p.first_attempts = 0 AND p.box = 0))';
+
+  /// Lower ratio = weaker. Words without first attempts count as neutral.
+  static const _ratioExpr =
+      '(CASE WHEN p.first_attempts = 0 THEN 0.5 '
+      'ELSE p.first_correct * 1.0 / p.first_attempts END)';
+
+  /// FROM/WHERE pieces shared by the candidate queries. The word table is
+  /// aliased `v`; `extraWhere` is ANDed in.
+  (String, List<Object>) _deckFilter(DeckFilter filter, String extraWhere) {
+    final clauses = <String>[if (extraWhere.isNotEmpty) extraWhere];
+    final args = <Object>[];
+    final categories = filter.categories;
+    if (categories != null) {
+      clauses.add('v.category IN (${categories.map((_) => '?').join(',')})');
+      args.addAll(categories);
+    }
+    final libraryId = filter.libraryId;
+    if (libraryId != null) {
+      clauses.add(
+        'EXISTS (SELECT 1 FROM library_vocab_items lvi '
+        'WHERE lvi.library_id = ? AND lvi.vocab_id = v.id)',
+      );
+      args.add(libraryId);
+    }
+    return (clauses.isEmpty ? '' : 'WHERE ${clauses.join(' AND ')}', args);
+  }
+
+  /// Due words, weakest first (index on `next_due`), each flagged weak or
+  /// not. Returns at most [limit] rows; the caller samples from them.
+  Future<List<({int id, bool weak})>> getDueCandidates(
+    DeckFilter filter, {
+    required int nowMs,
+    required int limit,
+  }) async {
+    if (limit <= 0) return [];
+    final db = await database;
+    final (where, args) = _deckFilter(filter, 'p.next_due <= ?');
+    final rows = await db.rawQuery(
+      '''
+      SELECT v.id, (CASE WHEN $_weakPredicate THEN 1 ELSE 0 END) AS weak
+      FROM vocab_progress p
+      JOIN vocabularies v ON v.id = p.vocab_id
+      $where
+      ORDER BY (CASE WHEN $_weakPredicate THEN 0 ELSE 1 END),
+               p.wrong_streak DESC, $_ratioExpr ASC, p.next_due ASC
+      LIMIT ?
+    ''',
+      [nowMs, ...args, limit],
+    );
+    return [
+      for (final r in rows) (id: r['id'] as int, weak: (r['weak'] as int) == 1),
+    ];
+  }
+
+  /// Ids matching [filter]. With [unseenOnly], only words that were never
+  /// answered (no progress row and no old totals).
+  Future<List<int>> getDeckIds(
+    DeckFilter filter, {
+    bool unseenOnly = false,
+  }) async {
+    final db = await database;
+    final (where, args) = _deckFilter(
+      filter,
+      unseenOnly
+          ? 'v.reviewCount = 0 AND NOT EXISTS '
+                '(SELECT 1 FROM vocab_progress p WHERE p.vocab_id = v.id)'
+          : '',
+    );
+    final rows = await db.rawQuery(
+      'SELECT v.id FROM vocabularies v $where',
+      args,
+    );
+    return rows.map((r) => r['id'] as int).toList();
+  }
+
+  /// Weakest words overall (ignores category/library), worst first.
+  Future<List<int>> getWeakestIds({required int limit}) async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT p.vocab_id AS id FROM vocab_progress p
+      JOIN vocabularies v ON v.id = p.vocab_id
+      WHERE $_weakPredicate
+      ORDER BY p.wrong_streak DESC, $_ratioExpr ASC,
+               (p.first_attempts - p.first_correct) DESC, p.next_due ASC
+      LIMIT ?
+    ''',
+      [limit],
+    );
+    return rows.map((r) => r['id'] as int).toList();
+  }
+
+  Future<int> getWeakWordCount() async {
+    final db = await database;
+    return Sqflite.firstIntValue(
+          await db.rawQuery(
+            'SELECT COUNT(*) FROM vocab_progress p '
+            'JOIN vocabularies v ON v.id = p.vocab_id WHERE $_weakPredicate',
+          ),
+        ) ??
+        0;
+  }
+
+  /// Full rows for [ids], in the order of [ids]. Missing ids are skipped.
+  Future<List<Vocabulary>> getVocabulariesByIds(List<int> ids) async {
+    if (ids.isEmpty) return [];
+    final db = await database;
+    final byId = <int, Vocabulary>{};
+    for (var i = 0; i < ids.length; i += _idChunk) {
+      final chunk = ids.sublist(i, min(i + _idChunk, ids.length));
+      final rows = await db.rawQuery(
+        'SELECT * FROM vocabularies WHERE id IN (${chunk.map((_) => '?').join(',')})',
+        chunk,
+      );
+      for (final row in rows) {
+        final vocab = Vocabulary.fromMap(row);
+        byId[vocab.id!] = vocab;
+      }
+    }
+    return [for (final id in ids) ?byId[id]];
+  }
+
+  /// Ids per `IN (...)` query, below SQLite's variable limit.
+  static const _idChunk = 500;
+
   // ===== LIBRARY METHODS =====
 
   Future<int> createLibrary(String name) async {
@@ -558,11 +861,10 @@ class DatabaseHelper {
 
   Future<int> addVocabToLibrary(int libraryId, int vocabId) async {
     final db = await database;
-    return db.insert(
-      'library_vocab_items',
-      {'library_id': libraryId, 'vocab_id': vocabId},
-      conflictAlgorithm: ConflictAlgorithm.ignore,
-    );
+    return db.insert('library_vocab_items', {
+      'library_id': libraryId,
+      'vocab_id': vocabId,
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
   }
 
   /// Adds the words in one transaction and returns how many were actually
@@ -582,11 +884,10 @@ class DatabaseHelper {
       final before = await count();
       final batch = txn.batch();
       for (final vocabId in vocabIds) {
-        batch.insert(
-          'library_vocab_items',
-          {'library_id': libraryId, 'vocab_id': vocabId},
-          conflictAlgorithm: ConflictAlgorithm.ignore,
-        );
+        batch.insert('library_vocab_items', {
+          'library_id': libraryId,
+          'vocab_id': vocabId,
+        }, conflictAlgorithm: ConflictAlgorithm.ignore);
       }
       await batch.commit(noResult: true);
       return await count() - before;
@@ -617,31 +918,43 @@ class DatabaseHelper {
     return vocabIds.length;
   }
 
-  Future<List<Vocabulary>> getLibraryVocabularies(int libraryId, {int limit = 10000}) async {
+  Future<List<Vocabulary>> getLibraryVocabularies(
+    int libraryId, {
+    int limit = 10000,
+  }) async {
     final db = await database;
-    final maps = await db.rawQuery('''
+    final maps = await db.rawQuery(
+      '''
       SELECT v.* FROM vocabularies v
       JOIN library_vocab_items lvi ON v.id = lvi.vocab_id
       WHERE lvi.library_id = ?
       ORDER BY v.category, v.hanzi
       LIMIT ?
-    ''', [libraryId, limit]);
+    ''',
+      [libraryId, limit],
+    );
     return maps.map(Vocabulary.fromMap).toList();
   }
 
   Future<int> getLibraryVocabulariesCount(int libraryId) async {
     final db = await database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT COUNT(*) as count FROM library_vocab_items WHERE library_id = ?
-    ''', [libraryId]);
+    ''',
+      [libraryId],
+    );
     return result.first['count'] as int;
   }
 
   Future<bool> isVocabInLibrary(int libraryId, int vocabId) async {
     final db = await database;
-    final result = await db.rawQuery('''
+    final result = await db.rawQuery(
+      '''
       SELECT 1 FROM library_vocab_items WHERE library_id = ? AND vocab_id = ?
-    ''', [libraryId, vocabId]);
+    ''',
+      [libraryId, vocabId],
+    );
     return result.isNotEmpty;
   }
 
@@ -650,13 +963,16 @@ class DatabaseHelper {
     required int limit,
   }) async {
     final db = await database;
-    final maps = await db.rawQuery('''
+    final maps = await db.rawQuery(
+      '''
       SELECT v.* FROM vocabularies v
       JOIN library_vocab_items lvi ON v.id = lvi.vocab_id
       WHERE lvi.library_id = ?
       ORDER BY RANDOM()
       LIMIT ?
-    ''', [libraryId, limit]);
+    ''',
+      [libraryId, limit],
+    );
     return maps.map(Vocabulary.fromMap).toList();
   }
 

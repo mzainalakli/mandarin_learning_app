@@ -2,8 +2,11 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../models/deck_filter.dart';
+import '../models/review_event.dart';
 import '../models/vocabulary.dart';
 import '../services/database_helper.dart';
+import '../services/deck_builder.dart';
 
 enum QuizModule {
   pinyinToHanziAndMeaning,
@@ -15,13 +18,19 @@ enum QuizModule {
 
 enum QuizAnswerMode { multipleChoice, essay }
 
-typedef ReviewRecorder = Future<void> Function(int vocabId, bool correct);
+typedef ReviewRecorder = Future<void> Function(ReviewEvent event);
 
 class QuizProvider extends ChangeNotifier {
-  QuizProvider({ReviewRecorder? recordReview, Random? random})
-    : _recordReview =
-          recordReview ?? DatabaseHelper.instance.updateReviewStats,
-      _rng = random ?? Random();
+  QuizProvider({
+    ReviewRecorder? recordReview,
+    Random? random,
+    DateTime Function()? now,
+    DeckBuilder? deckBuilder,
+  }) : _recordReview = recordReview ?? DatabaseHelper.instance.recordReview,
+       _rng = random ?? Random(),
+       _now = now ?? DateTime.now {
+    _deckBuilder = deckBuilder ?? DeckBuilder(random: _rng, now: _now);
+  }
 
   /// Words loaded for a "no limit" session; the pool is replayed in rounds.
   static const endlessPoolSize = 1000;
@@ -32,6 +41,10 @@ class QuizProvider extends ChangeNotifier {
 
   final ReviewRecorder _recordReview;
   final Random _rng;
+  final DateTime Function() _now;
+  late final DeckBuilder _deckBuilder;
+  int _sessionId = 0;
+  DateTime? _questionShownAt;
 
   QuizModule _module = QuizModule.pinyinToHanziAndMeaning;
   QuizModule get module => _module;
@@ -152,9 +165,9 @@ class QuizProvider extends ChangeNotifier {
   }) async {
     _currentCategory = category;
     _currentLibraryId = null;
-    final vocabs = await DatabaseHelper.instance.getQuizVocabulary(
-      category: category,
-      limit: sessionSize ?? endlessPoolSize,
+    final vocabs = await _deckBuilder.build(
+      filter: DeckBuilder.categoryFilter(category),
+      size: sessionSize ?? endlessPoolSize,
     );
     _initQuiz(
       vocabs,
@@ -172,9 +185,28 @@ class QuizProvider extends ChangeNotifier {
   }) async {
     _currentCategory = null;
     _currentLibraryId = libraryId;
-    final vocabs = await DatabaseHelper.instance.getQuizVocabularyFromLibrary(
-      libraryId: libraryId,
-      limit: sessionSize ?? endlessPoolSize,
+    final vocabs = await _deckBuilder.build(
+      filter: DeckFilter(libraryId: libraryId),
+      size: sessionSize ?? endlessPoolSize,
+    );
+    _initQuiz(
+      vocabs,
+      module: module,
+      answerMode: answerMode,
+      sessionSize: sessionSize,
+    );
+  }
+
+  /// "Weak words practice": a deck of the user's weakest words overall.
+  Future<void> startWeakWordsQuiz({
+    required QuizModule module,
+    required QuizAnswerMode answerMode,
+    int? sessionSize = 20,
+  }) async {
+    _currentCategory = null;
+    _currentLibraryId = null;
+    final vocabs = await _deckBuilder.buildWeak(
+      size: sessionSize ?? endlessPoolSize,
     );
     _initQuiz(
       vocabs,
@@ -228,12 +260,34 @@ class QuizProvider extends ChangeNotifier {
     _round = 1;
     _score = 0;
     _quizFinished = false;
+    _sessionId = _now().toUtc().millisecondsSinceEpoch;
     _advance();
   }
 
-  void _registerOutcome(bool correct) {
+  /// Updates the session score and returns whether this was the word's first
+  /// answer (per round in a no-limit session).
+  bool _registerOutcome(bool correct) {
     final firstAttempt = _attempted.add(_current!);
     if (correct && firstAttempt) _score++;
+    return firstAttempt;
+  }
+
+  ReviewEvent _event(bool correct, bool firstAttempt, ReviewOutcome outcome) {
+    final now = _now();
+    final shown = _questionShownAt;
+    return ReviewEvent(
+      vocabId: _current!.id!,
+      timestamp: now,
+      module: _module.name,
+      mode: _answerMode == QuizAnswerMode.essay
+          ? ReviewEvent.modeEssay
+          : ReviewEvent.modeChoice,
+      correct: correct,
+      isFirstAttempt: firstAttempt,
+      sessionId: _sessionId,
+      responseMs: shown == null ? null : now.difference(shown).inMilliseconds,
+      outcome: outcome,
+    );
   }
 
   Future<bool> checkAnswer(int index) async {
@@ -247,8 +301,8 @@ class QuizProvider extends ChangeNotifier {
     _selectedIndex = index;
     _answered = true;
     final correct = identical(_options[index], _current);
-    _registerOutcome(correct);
-    await _recordReview(_current!.id!, correct);
+    final first = _registerOutcome(correct);
+    await _recordReview(_event(correct, first, ReviewOutcome.answer));
     notifyListeners();
     return correct;
   }
@@ -263,8 +317,8 @@ class QuizProvider extends ChangeNotifier {
     if (_current == null || _current!.id == null || _answered) return;
     _answered = true;
     _revealed = true;
-    _registerOutcome(false);
-    await _recordReview(_current!.id!, false);
+    final first = _registerOutcome(false);
+    await _recordReview(_event(false, first, ReviewOutcome.timeout));
     notifyListeners();
   }
 
@@ -273,8 +327,8 @@ class QuizProvider extends ChangeNotifier {
       return;
     }
     _answered = true;
-    _registerOutcome(correct);
-    await _recordReview(_current!.id!, correct);
+    final first = _registerOutcome(correct);
+    await _recordReview(_event(correct, first, ReviewOutcome.answer));
     notifyListeners();
   }
 
@@ -290,8 +344,10 @@ class QuizProvider extends ChangeNotifier {
     _repeatTotal++;
     _answered = true;
     _requeueCurrent = true;
-    _registerOutcome(false);
-    if (current.id != null) await _recordReview(current.id!, false);
+    final first = _registerOutcome(false);
+    if (current.id != null) {
+      await _recordReview(_event(false, first, ReviewOutcome.reviewLater));
+    }
     notifyListeners();
   }
 
@@ -380,6 +436,7 @@ class QuizProvider extends ChangeNotifier {
     _answered = false;
     _revealed = false;
     _requeueCurrent = false;
+    _questionShownAt = _now();
     if (_answerMode == QuizAnswerMode.multipleChoice) {
       final pool = List<Vocabulary>.from(_allVocabs)..remove(_current);
       pool.shuffle(_rng);

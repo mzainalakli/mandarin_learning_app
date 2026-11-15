@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../../controllers/menu_app_controller.dart';
 import '../../core/responsive.dart';
+import '../../models/stats_snapshot.dart';
 import '../../models/vocab_stats.dart';
 import '../../models/vocabulary.dart';
 import '../../providers/quiz_provider.dart';
 import '../../services/database_helper.dart';
+import '../../services/stats_repository.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,6 +19,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   VocabStats _stats = const VocabStats.empty();
+  StatsSummary _summary = const StatsSummary.empty();
 
   @override
   void initState() {
@@ -30,6 +33,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) setState(() => _stats = stats);
     } catch (_) {
       // Keep the zeroed stats; the dashboard shortcuts still work.
+    }
+    try {
+      final summary = await StatsRepository().loadSummary();
+      if (mounted) setState(() => _summary = summary);
+    } catch (_) {
+      // The progress card simply shows zeros.
     }
   }
 
@@ -64,9 +73,78 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 menuController.selectMenu(MenuAppController.settingsIndex),
           ),
           SizedBox(height: sectionGap),
+          _ProgressCard(
+            summary: _summary,
+            onWeakWords: () => menuController.openQuiz(weakWords: true),
+            onStatistics: () =>
+                menuController.selectMenu(MenuAppController.statsIndex),
+          ),
+          SizedBox(height: sectionGap),
           _TOCFLProgressGrid(tocflCounts: tocflCounts),
           SizedBox(height: sectionGap),
           _PracticeModuleCards(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact progress summary with shortcuts to the statistics screen and to
+/// weak-words practice.
+class _ProgressCard extends StatelessWidget {
+  const _ProgressCard({
+    required this.summary,
+    required this.onWeakWords,
+    required this.onStatistics,
+  });
+
+  final StatsSummary summary;
+  final VoidCallback onWeakWords;
+  final VoidCallback onStatistics;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final gap = Responsive.gap(context);
+    return ResponsiveCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Your progress', style: theme.textTheme.titleMedium),
+          SizedBox(height: gap),
+          Wrap(
+            spacing: gap * 2,
+            runSpacing: gap,
+            children: [
+              Text(
+                '${summary.streakDays}-day streak',
+                style: theme.textTheme.titleSmall,
+              ),
+              Text(
+                '${summary.answersToday} answers today',
+                style: theme.textTheme.titleSmall,
+              ),
+              Text(
+                '${summary.weakWords} weak words',
+                style: theme.textTheme.titleSmall,
+              ),
+            ],
+          ),
+          SizedBox(height: gap),
+          Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              FilledButton(
+                onPressed: onWeakWords,
+                child: const Text('Practice weak words'),
+              ),
+              OutlinedButton(
+                onPressed: onStatistics,
+                child: const Text('View statistics'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -147,10 +225,12 @@ class _HeroCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _HeroCopy(
-                      wordCount: totalWords,
-                      firstBandWords: firstBandWords,
-                    )),
+                    Expanded(
+                      child: _HeroCopy(
+                        wordCount: totalWords,
+                        firstBandWords: firstBandWords,
+                      ),
+                    ),
                     const SizedBox(width: 24),
                     _HeroStats(
                       wordCount: totalWords,
@@ -254,10 +334,7 @@ class _HeroCopy extends StatelessWidget {
             label: Vocabulary.tocflCategories.first,
             value: '$firstBandWords',
           ),
-          _HeroMetric(
-            label: 'Deck ready',
-            value: wordCount > 0 ? 'Yes' : 'No',
-          ),
+          _HeroMetric(label: 'Deck ready', value: wordCount > 0 ? 'Yes' : 'No'),
         ],
       ),
     ],
@@ -498,24 +575,24 @@ class _TOCFLBandCard extends StatelessWidget {
                 const SizedBox(width: Responsive.compactGap),
                 Flexible(
                   child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '$wordCount words',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$wordCount words',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                ),
                 ),
               ],
             ),

@@ -2,9 +2,10 @@
 
 All persistent data lives in a single SQLite file, `mandarin.db`, accessed through [`DatabaseHelper`](../lib/services/database_helper.dart) (a singleton, `DatabaseHelper.instance`). Small preferences use `shared_preferences`. See [Getting started](getting-started.md#where-the-database-is-stored) for the file location per platform.
 
-## Schema (version 7)
+## Schema (version 8)
 
 ```sql
+-- Versions 1-7 --
 CREATE TABLE vocabularies (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   hanzi            TEXT NOT NULL,
@@ -33,6 +34,39 @@ CREATE TABLE library_vocab_items (
 );
 ```
 
+-- Added in version 8 --
+
+CREATE TABLE review_events (            -- one row per real answer
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  vocab_id         INTEGER NOT NULL,
+  ts               INTEGER NOT NULL,    -- epoch ms, UTC
+  day              INTEGER NOT NULL,    -- local calendar day, yyyymmdd
+  module           TEXT NOT NULL,       -- QuizModule name
+  mode             TEXT NOT NULL,       -- 'choice' | 'essay'
+  correct          INTEGER NOT NULL,
+  is_first_attempt INTEGER NOT NULL,
+  session_id       INTEGER NOT NULL,
+  response_ms      INTEGER,
+  outcome          TEXT NOT NULL,       -- 'answer' | 'timeout' | 'review_later'
+  FOREIGN KEY (vocab_id) REFERENCES vocabularies(id) ON DELETE CASCADE
+);
+-- indexes: (vocab_id, ts), (ts), (day)
+
+CREATE TABLE vocab_progress (           -- Leitner state, one row per answered word
+  vocab_id       INTEGER PRIMARY KEY,
+  box            INTEGER NOT NULL DEFAULT 0,   -- 0..5
+  next_due       INTEGER NOT NULL,             -- epoch ms, UTC
+  first_attempts INTEGER NOT NULL DEFAULT 0,
+  first_correct  INTEGER NOT NULL DEFAULT 0,
+  wrong_streak   INTEGER NOT NULL DEFAULT 0,
+  last_first_ts  INTEGER,
+  FOREIGN KEY (vocab_id) REFERENCES vocabularies(id) ON DELETE CASCADE
+);
+-- indexes: (next_due), (box); also vocabularies(category)
+```
+
+`reviewCount` / `correctCount` on `vocabularies` still count **every** answer (including repeats after Review Later), while `vocab_progress.first_attempts` / `first_correct` and all statistics count first attempts only. See [Architecture](architecture.md#learning-statistics-and-word-selection).
+
 The Dart model is [`Vocabulary`](../lib/models/vocabulary.dart) (`toMap`/`fromMap`, `copyWith`). Notable getters:
 
 | Getter | Behaviour |
@@ -49,7 +83,7 @@ The Dart model is [`Vocabulary`](../lib/models/vocabulary.dart) (`toMap`/`fromMa
 
 ### Foreign keys are not enforced
 
-The code never issues `PRAGMA foreign_keys = ON` (there is no `onConfigure` callback), so SQLite's default — foreign keys **off** — applies and the `ON DELETE CASCADE` clauses do nothing. Practical effects: deleting a library leaves its rows in `library_vocab_items`; deleting a word leaves its library links behind. Library word lists use a `JOIN`, so orphaned links are invisible there, but the item count shown on a library tile counts raw link rows and can be too high after words are deleted or the vocabulary is reset.
+The code never issues `PRAGMA foreign_keys = ON` (there is no `onConfigure` callback), so SQLite's default — foreign keys **off** — applies and the `ON DELETE CASCADE` clauses do nothing. Practical effects: deleting a library leaves its rows in `library_vocab_items`; deleting a word leaves its library links behind (this is an existing bug and is not cleaned up automatically). The new statistics tables do not rely on cascades: `deleteVocab` removes the word's `review_events`, `vocab_progress` and `library_vocab_items` rows in one transaction, and `resetAndReloadEnglishVocabulary` clears both statistics tables. Library word lists use a `JOIN`, so orphaned links are invisible there, but the item count shown on a library tile counts raw link rows and can be too high after words are deleted or the vocabulary is reset.
 
 ## Migrations
 
@@ -63,8 +97,13 @@ The code never issues `PRAGMA foreign_keys = ON` (there is no `onConfigure` call
 | 5 | **Delete all vocabulary** and reseed |
 | 6 | **Delete all vocabulary** and reseed |
 | 7 | Create `user_libraries` and `library_vocab_items` |
+| 8 | **Additive only:** create `review_events` and `vocab_progress` (`IF NOT EXISTS`) and their indexes, then backfill `vocab_progress` for words with `reviewCount > 0` (box 2 if `correctCount / reviewCount >= 0.8`, otherwise box 0; due now). No data is deleted or altered. Old answer history cannot be reconstructed, so trends start with this version. |
 
-A database created by an older build (version < 6) is therefore reset when opened by this build — user-added words and review history in `vocabularies` are lost at that point. Databases already at version 6 or 7 are upgraded without data loss.
+A database created by an older build (version < 6) is therefore reset when opened by this build — user-added words and review history in `vocabularies` are lost at that point. Databases already at version 6 or 7 are upgraded without data loss; the 7 → 8 step is covered by `test/stats_db_test.dart`.
+
+## Backup of statistics
+
+Export/import (XLSX/CSV) carries only the six vocabulary columns: review totals, libraries, `review_events` and `vocab_progress` are **not** exported, so uninstalling the app (or clearing its data) loses them. The Android manifest does not set `allowBackup`, so the platform default applies and Android Auto Backup *might* include the database; this has **not been verified** on a device and should not be relied on. Desktop builds have no automatic backup. A dedicated progress export (keyed by hanzi + pinyin, because ids change after a reinstall) is a possible future addition and is not implemented.
 
 ## Seeding
 

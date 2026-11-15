@@ -7,6 +7,7 @@ import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/dashboard/bulk_operations_screen.dart';
 import '../../screens/library/library_screen.dart';
 import '../../screens/quiz/bopomofo_training_screen.dart';
+import '../../screens/stats/stats_screen.dart';
 import '../../screens/quiz/quiz_mode_selection_screen.dart';
 import '../../views/manage_vocab_screen.dart';
 import '../../views/settings_screen.dart';
@@ -65,6 +66,7 @@ class MainScreen extends StatelessWidget {
 
   static Widget _screenFor(int index) => switch (index) {
     MenuAppController.quizIndex => const QuizModeSelectionScreen(),
+    MenuAppController.statsIndex => const StatsScreen(),
     MenuAppController.bopomofoIndex => const BopomofoTrainingScreen(),
     MenuAppController.libraryIndex => const LibraryScreen(),
     MenuAppController.dictionaryIndex => const ManageVocabScreen(),
@@ -75,6 +77,7 @@ class MainScreen extends StatelessWidget {
 
   static String _screenTitle(int index) => switch (index) {
     MenuAppController.quizIndex => 'Practice Quiz',
+    MenuAppController.statsIndex => 'Statistics',
     MenuAppController.bopomofoIndex => 'Bopomofo Training',
     MenuAppController.libraryIndex => 'My Library',
     MenuAppController.dictionaryIndex => 'Dictionary',

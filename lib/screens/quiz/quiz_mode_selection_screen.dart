@@ -5,6 +5,7 @@ import '../../controllers/menu_app_controller.dart';
 import '../../models/library_list.dart';
 import '../../models/vocabulary.dart';
 import '../../providers/quiz_provider.dart';
+import '../../services/deck_builder.dart';
 import '../../services/database_helper.dart';
 import '../../widgets/custom_app_bar.dart';
 import '../../widgets/session_options.dart';
@@ -20,6 +21,7 @@ class QuizModeSelectionScreen extends StatefulWidget {
 
 class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
   static const _libraryPrefix = 'library:';
+  static const _weakSelection = 'weak';
   static const _modules = [
     (QuizModule.pinyinToHanziAndMeaning, 'Pinyin → Hanzi + Meaning'),
     (QuizModule.hanziToPinyinAndMeaning, 'Hanzi → Pinyin + Meaning'),
@@ -30,6 +32,7 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
   String _selection = 'All';
   List<LibraryList> _libraries = [];
   bool _starting = false;
+  int _weakCount = 0;
 
   @override
   void initState() {
@@ -38,17 +41,29 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
     _module = menu.quizModule;
     final library = menu.quizLibrary;
     if (library != null) _selection = '$_libraryPrefix${library.id}';
+    if (menu.quizWeakWords) _selection = _weakSelection;
     _loadLibraries();
   }
 
   Future<void> _loadLibraries() async {
     try {
       final libs = await DatabaseHelper.instance.getAllLibraries();
-      if (mounted) setState(() => _libraries = libs);
+      final weak = await DatabaseHelper.instance.getWeakWordCount();
+      if (mounted) {
+        setState(() {
+          _libraries = libs;
+          _weakCount = weak;
+        });
+      }
     } catch (_) {
       // Keep the list empty; the quiz still works with TOCFL categories.
     }
   }
+
+  bool get _weakSelected => _selection == _weakSelection;
+
+  bool get _canStart =>
+      !_starting && (!_weakSelected || _weakCount >= DeckBuilder.weakWordsMinDeck);
 
   int? get _libraryId => _selection.startsWith(_libraryPrefix)
       ? int.tryParse(_selection.substring(_libraryPrefix.length))
@@ -64,6 +79,7 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
         answerMode: answerMode,
         category: _selection,
         libraryId: _libraryId,
+        weakWords: _weakSelected,
       );
     } finally {
       if (mounted) setState(() => _starting = false);
@@ -75,6 +91,10 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
     final items = <DropdownMenuItem<String>>[
       for (final category in Vocabulary.allCategoriesForFilter)
         DropdownMenuItem(value: category, child: Text(category)),
+      DropdownMenuItem(
+        value: _weakSelection,
+        child: Text('Weak words ($_weakCount)'),
+      ),
       for (final library in _libraries)
         DropdownMenuItem(
           value: '$_libraryPrefix${library.id}',
@@ -138,6 +158,14 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
                           border: OutlineInputBorder(),
                         ),
                       ),
+                      if (_weakSelected && !_canStart && !_starting)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Not enough weak words yet. Answer more '
+                            'questions first.',
+                          ),
+                        ),
                       const SizedBox(height: 18),
                       Text(
                         'Timer',
@@ -152,21 +180,19 @@ class _QuizModeSelectionScreenState extends State<QuizModeSelectionScreen> {
               const SizedBox(height: 18),
               AnswerModeCard(
                 title: 'Multiple Choice Mode',
-                subtitle:
-                    'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
+                subtitle: 'Interactive 4-option quiz with instant feedback, pass support, and timer-based pace control.',
                 icon: Icons.check_circle_outline,
                 color: colors.primaryContainer,
-                onTap: _starting
-                    ? null
-                    : () => _start(QuizAnswerMode.multipleChoice),
+                onTap: _canStart
+                    ? () => _start(QuizAnswerMode.multipleChoice)
+                    : null,
               ),
               AnswerModeCard(
                 title: 'Essay / Flashcard Mode',
-                subtitle:
-                    'Think first, reveal the answer card, then Got It or Review Later — a word you review later comes back among the unseen ones.',
+                subtitle: 'Think first, reveal the answer card, then Got It or Review Later — a word you review later comes back among the unseen ones.',
                 icon: Icons.style_outlined,
                 color: colors.tertiaryContainer,
-                onTap: _starting ? null : () => _start(QuizAnswerMode.essay),
+                onTap: _canStart ? () => _start(QuizAnswerMode.essay) : null,
               ),
             ],
           ),

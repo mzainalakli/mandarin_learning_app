@@ -6,6 +6,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'controllers/menu_app_controller.dart';
 import 'providers/quiz_provider.dart';
+import 'providers/stats_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/vocab_provider.dart';
 import 'screens/main/main_screen.dart';
@@ -25,6 +26,7 @@ Future<void> main() async {
       providers: [
         ChangeNotifierProvider.value(value: vocabProvider),
         ChangeNotifierProvider(create: (_) => QuizProvider()),
+        ChangeNotifierProvider(create: (_) => StatsProvider()),
         ChangeNotifierProvider(create: (_) => MenuAppController()),
         ChangeNotifierProvider.value(value: settingsProvider),
       ],

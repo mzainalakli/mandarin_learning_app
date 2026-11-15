@@ -11,6 +11,7 @@ class MenuAppController extends ChangeNotifier {
   static const dictionaryIndex = 4;
   static const importExportIndex = 5;
   static const settingsIndex = 6;
+  static const statsIndex = 7;
 
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = dashboardIndex;
@@ -20,6 +21,10 @@ class MenuAppController extends ChangeNotifier {
   QuizModule get quizModule => _quizModule;
   LibraryList? _quizLibrary;
   LibraryList? get quizLibrary => _quizLibrary;
+  bool _quizWeakWords = false;
+
+  /// True when the quiz section should open on "Weak words".
+  bool get quizWeakWords => _quizWeakWords;
 
   void setSelectedIndex(int index) {
     closeDrawer();
@@ -51,9 +56,14 @@ class MenuAppController extends ChangeNotifier {
   /// Shows the Practice Quiz section preconfigured with [module] and,
   /// optionally, one of the user's [library] lists as the word source.
   /// Replaces pushing a second quiz-setup page on top of the section.
-  void openQuiz({QuizModule? module, LibraryList? library}) {
+  void openQuiz({
+    QuizModule? module,
+    LibraryList? library,
+    bool weakWords = false,
+  }) {
     _quizModule = module ?? QuizModule.pinyinToHanziAndMeaning;
     _quizLibrary = library;
+    _quizWeakWords = weakWords;
     if (_selectedIndex == quizIndex) {
       notifyListeners();
     } else {
