@@ -40,7 +40,7 @@ QuizProvider _quiz(
   QuizModule module = QuizModule.hanziToMeaning,
   bool long = false,
 }) {
-  final quiz = QuizProvider(recordReview: (_, _) async {}, random: Random(1));
+  final quiz = QuizProvider(recordReview: (_) async {}, random: Random(1));
   quiz.startNewQuiz(
     _vocabs(long: long),
     module: module,

@@ -16,12 +16,19 @@ Future<void> launchQuiz(
   required QuizAnswerMode answerMode,
   required String category,
   int? libraryId,
+  bool weakWords = false,
 }) async {
   final quiz = context.read<QuizProvider>();
   final sessionSize = context.read<SettingsProvider>().sessionSize;
   final navigator = Navigator.of(context);
 
-  if (libraryId != null) {
+  if (weakWords) {
+    await quiz.startWeakWordsQuiz(
+      module: module,
+      answerMode: answerMode,
+      sessionSize: sessionSize,
+    );
+  } else if (libraryId != null) {
     await quiz.startQuizFromLibrary(
       libraryId: libraryId,
       module: module,

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:mandarin_app/models/review_event.dart';
 import 'package:mandarin_app/models/vocabulary.dart';
 import 'package:mandarin_app/providers/quiz_provider.dart';
 import 'package:mandarin_app/providers/settings_provider.dart';
@@ -21,7 +22,7 @@ List<Vocabulary> _vocabs(int count) => List.generate(
 
 class _Recorder {
   final calls = <(int, bool)>[];
-  Future<void> call(int id, bool correct) async => calls.add((id, correct));
+  Future<void> call(ReviewEvent e) async => calls.add((e.vocabId, e.correct));
 }
 
 QuizProvider _quiz(_Recorder recorder, {int seed = 1}) =>
@@ -60,55 +61,65 @@ void main() {
       expect(recorder.calls, [(first.id!, false)]);
     });
 
-    test('word is asked again, then the session ends only after it is passed', () async {
-      final recorder = _Recorder();
-      final quiz = _quiz(recorder);
-      quiz.startNewQuiz(
-        _vocabs(5),
-        module: QuizModule.hanziToMeaning,
-        answerMode: QuizAnswerMode.essay,
-      );
-      final first = quiz.current!;
-      var timesFirstAsked = 1;
-
-      await _reviewLater(quiz);
-      while (!quiz.quizFinished) {
-        if (identical(quiz.current, first)) timesFirstAsked++;
-        await _gotIt(quiz);
-      }
-
-      expect(timesFirstAsked, 2);
-      expect(quiz.completedCount, 5);
-      expect(quiz.score, 4, reason: 'first-try score excludes the missed word');
-      expect(
-        recorder.calls.where((c) => c.$1 == first.id).map((c) => c.$2),
-        [false, true],
-      );
-    });
-
-    test('is reinserted at varying positions among unasked words, never next', () async {
-      final positions = <int>{};
-      for (var seed = 0; seed < 120; seed++) {
-        final quiz = _quiz(_Recorder(), seed: seed);
+    test(
+      'word is asked again, then the session ends only after it is passed',
+      () async {
+        final recorder = _Recorder();
+        final quiz = _quiz(recorder);
         quiz.startNewQuiz(
-          _vocabs(8),
+          _vocabs(5),
           module: QuizModule.hanziToMeaning,
           answerMode: QuizAnswerMode.essay,
         );
         final first = quiz.current!;
-        await _reviewLater(quiz);
+        var timesFirstAsked = 1;
 
-        var asked = 0;
-        while (!identical(quiz.current, first)) {
-          asked++;
+        await _reviewLater(quiz);
+        while (!quiz.quizFinished) {
+          if (identical(quiz.current, first)) timesFirstAsked++;
           await _gotIt(quiz);
         }
-        expect(asked, greaterThanOrEqualTo(1), reason: 'seed $seed');
-        positions.add(asked);
-      }
-      expect(positions.length, greaterThan(3), reason: 'position is random');
-      expect(positions.reduce(max), lessThanOrEqualTo(7));
-    });
+
+        expect(timesFirstAsked, 2);
+        expect(quiz.completedCount, 5);
+        expect(
+          quiz.score,
+          4,
+          reason: 'first-try score excludes the missed word',
+        );
+        expect(recorder.calls.where((c) => c.$1 == first.id).map((c) => c.$2), [
+          false,
+          true,
+        ]);
+      },
+    );
+
+    test(
+      'is reinserted at varying positions among unasked words, never next',
+      () async {
+        final positions = <int>{};
+        for (var seed = 0; seed < 120; seed++) {
+          final quiz = _quiz(_Recorder(), seed: seed);
+          quiz.startNewQuiz(
+            _vocabs(8),
+            module: QuizModule.hanziToMeaning,
+            answerMode: QuizAnswerMode.essay,
+          );
+          final first = quiz.current!;
+          await _reviewLater(quiz);
+
+          var asked = 0;
+          while (!identical(quiz.current, first)) {
+            asked++;
+            await _gotIt(quiz);
+          }
+          expect(asked, greaterThanOrEqualTo(1), reason: 'seed $seed');
+          positions.add(asked);
+        }
+        expect(positions.length, greaterThan(3), reason: 'position is random');
+        expect(positions.reduce(max), lessThanOrEqualTo(7));
+      },
+    );
 
     test('a single remaining word simply comes back', () async {
       final quiz = _quiz(_Recorder());
@@ -159,27 +170,34 @@ void main() {
       expect(quiz.repeatTotal, QuizProvider.maxReviewLaterPerWord);
     });
 
-    test('session ends only when every repeated word is done; score is first try', () async {
-      for (var seed = 0; seed < 20; seed++) {
-        final quiz = _quiz(_Recorder(), seed: seed);
-        quiz.startNewQuiz(
-          _vocabs(6),
-          module: QuizModule.hanziToMeaning,
-          answerMode: QuizAnswerMode.essay,
-        );
-        final missed = quiz.current!;
-        await _reviewLater(quiz);
-        var guard = 0;
-        while (!quiz.quizFinished) {
-          expect(guard++, lessThan(50), reason: 'no endless loop');
-          await _gotIt(quiz);
+    test(
+      'session ends only when every repeated word is done; score is first try',
+      () async {
+        for (var seed = 0; seed < 20; seed++) {
+          final quiz = _quiz(_Recorder(), seed: seed);
+          quiz.startNewQuiz(
+            _vocabs(6),
+            module: QuizModule.hanziToMeaning,
+            answerMode: QuizAnswerMode.essay,
+          );
+          final missed = quiz.current!;
+          await _reviewLater(quiz);
+          var guard = 0;
+          while (!quiz.quizFinished) {
+            expect(guard++, lessThan(50), reason: 'no endless loop');
+            await _gotIt(quiz);
+          }
+          expect(quiz.completedCount, 6);
+          expect(
+            quiz.score,
+            5,
+            reason: 'repeat answer ($missed) does not score',
+          );
+          expect(quiz.remainingCount, 0);
+          expect(quiz.reviewLaterCount, 0);
         }
-        expect(quiz.completedCount, 6);
-        expect(quiz.score, 5, reason: 'repeat answer ($missed) does not score');
-        expect(quiz.remainingCount, 0);
-        expect(quiz.reviewLaterCount, 0);
-      }
-    });
+      },
+    );
 
     test('only works after the answer is revealed', () async {
       final recorder = _Recorder();
@@ -213,7 +231,11 @@ void main() {
         expect(quiz.quizFinished, isFalse, reason: 'question $i');
         expect(quiz.hasCurrent, isTrue);
         if (previous != null) {
-          expect(quiz.current, isNot(same(previous)), reason: 'no repeat at $i');
+          expect(
+            quiz.current,
+            isNot(same(previous)),
+            reason: 'no repeat at $i',
+          );
         }
         previous = quiz.current;
         await _gotIt(quiz);
@@ -352,10 +374,7 @@ void _pinyinToHanziTests() {
   );
 
   QuizProvider start(List<Vocabulary> deck, int seed) {
-    final quiz = QuizProvider(
-      recordReview: (_, _) async {},
-      random: Random(seed),
-    );
+    final quiz = QuizProvider(recordReview: (_) async {}, random: Random(seed));
     quiz.startNewQuiz(
       deck,
       module: QuizModule.pinyinToHanziAndMeaning,
@@ -394,7 +413,8 @@ void _pinyinToHanziTests() {
       for (var seed = 0; seed < 10 && !seen; seed++) {
         final quiz = start(deck, seed);
         seen = quiz.options.any(
-          (o) => !identical(o, quiz.current) && o.pinyin == quiz.current!.pinyin,
+          (o) =>
+              !identical(o, quiz.current) && o.pinyin == quiz.current!.pinyin,
         );
       }
       expect(seen, isTrue);
@@ -409,10 +429,7 @@ void _pinyinToHanziTests() {
     });
 
     test('other modules keep their option format', () {
-      final quiz = QuizProvider(
-        recordReview: (_, _) async {},
-        random: Random(1),
-      );
+      final quiz = QuizProvider(recordReview: (_) async {}, random: Random(1));
       quiz.startNewQuiz(
         [v(1, 'a', 'x'), v(2, 'a', 'y')],
         module: QuizModule.hanziToPinyinAndMeaning,
