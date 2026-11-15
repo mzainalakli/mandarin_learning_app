@@ -30,8 +30,9 @@ The three Pinyin/Hanzi/Meaning modules are chosen with the *Quiz type* chips on 
 Both configuration screens call `launchQuiz()` ([`quiz_launcher.dart`](../lib/screens/quiz/quiz_launcher.dart)), which loads a fresh deck into `QuizProvider` and then pushes `QuizSessionScreen`. The session screen never loads words itself.
 
 1. A start method loads candidate words from the database:
-   - `startQuiz(category, …)` → `DatabaseHelper.getQuizVocabulary` — random order, limited to the session size.
-   - `startQuizFromLibrary(libraryId, …)` → `getQuizVocabularyFromLibrary` — random order, limited to the session size.
+   - `startQuiz(category, …)` and `startQuizFromLibrary(libraryId, …)` → `DeckBuilder.build` — about half of the deck is weak or due words, the rest never-seen and then random words, no duplicates (see [Architecture](architecture.md#learning-statistics-and-word-selection)).
+   - `startWeakWordsQuiz(…)` → `DeckBuilder.buildWeak` — the weakest words overall ("Weak words" in the quiz dropdown).
+   - The old `getQuizVocabulary` / `getQuizVocabularyFromLibrary` random queries still exist in `DatabaseHelper` but the quiz no longer uses them.
    - `startNewQuiz(vocabs, …)` — uses an in-memory list (used by the unit tests).
 2. `sessionSize` is an `int?`: a number from 1 to 1000 (`SettingsProvider.sessionSize`, default 20), or `null` for **no limit**. The candidate list is shuffled and trimmed to that size — or, for no limit, to `QuizProvider.endlessPoolSize` (1000) words. This is the session's **deck** (`totalCount`).
 3. The deck is shuffled again into the `remaining` queue; the Pass queue (`reviewLater`) starts empty and counters reset.
@@ -96,7 +97,7 @@ Every deck word is served once, plus once more per Pass or Review Later. A word 
 - In-session: `score` (words answered correctly **on the first attempt**), `completedCount` (completed words), `progressFraction` (`completedCount / totalCount`, or the current round's share in a no-limit session).
 - First-attempt scoring: the first graded answer to a word decides whether it scores; later attempts (after Review Later or Pass) do not. In a no-limit session the bookkeeping resets every round.
 - The finish card reports `Correct <score> of <completedCount> on the first try` and either `You reviewed <totalCount> words in total.` or, for no-limit sessions, `You answered <completedCount> words (<round> rounds).`
-- Persistent: `DatabaseHelper.updateReviewStats(id, correct)` adds one to `reviewCount`, adds one to `correctCount` if correct, and stores `lastReviewed` as an ISO-8601 timestamp. Words without a database id (`id == null`) are never scored.
+- Persistent: `DatabaseHelper.recordReview(event)` runs one transaction per real answer: it adds one to `reviewCount`, adds one to `correctCount` if correct, stores `lastReviewed` as an ISO-8601 timestamp, inserts a `review_events` row and, for first attempts only, updates `vocab_progress` (Leitner box). Pass is not recorded; Review Later and timeouts are recorded as misses; answers after Review Later are stored with `is_first_attempt = 0`. Words without a database id (`id == null`) are never scored.
 - `Vocabulary.accuracy` is `correctCount / reviewCount` (0 when never reviewed). It is shown in the word detail sheet.
 
 ## Text-to-speech
@@ -105,4 +106,4 @@ Every deck word is served once, plus once more per Pass or Review Later. A word 
 
 ## Tests
 
-`QuizProvider` accepts an optional review recorder and random generator, so the session logic is tested without a database: [`test/quiz_provider_test.dart`](../test/quiz_provider_test.dart) covers Review Later (re-queuing, random position, never immediately next, first-try scoring), no-limit sessions (rounds, no repeats across rounds, Finish), multiple-choice scoring and the persisted session size. [`test/widget_test.dart`](../test/widget_test.dart) covers the model, deck non-repetition, the Pass queue and import/export. Run everything with `flutter test`.
+`QuizProvider` accepts an optional review recorder (it receives a `ReviewEvent`), random generator, clock and `DeckBuilder`, so the session logic is tested without a database: [`test/quiz_provider_test.dart`](../test/quiz_provider_test.dart) covers Review Later (re-queuing, random position, never immediately next, first-try scoring), no-limit sessions (rounds, no repeats across rounds, Finish), multiple-choice scoring and the persisted session size. [`test/widget_test.dart`](../test/widget_test.dart) covers the model, deck non-repetition, the Pass queue and import/export. Deck selection is covered by `test/deck_builder_test.dart` (seeded `Random`, fake clock, 15k-word timing test), event recording and the 7 → 8 migration by `test/stats_db_test.dart`, aggregation by `test/stats_repository_test.dart` and the Statistics layout by `test/stats_screen_test.dart`. Run everything with `flutter test`.

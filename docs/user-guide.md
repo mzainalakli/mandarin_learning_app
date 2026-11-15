@@ -4,7 +4,7 @@ This guide walks through every screen of the app. For the rules behind the quizz
 
 ## Layout and navigation
 
-The app has seven top-level sections, available from the side menu:
+The app has eight top-level sections, available from the side menu:
 
 | # | Section | Purpose |
 |---|---|---|
@@ -15,6 +15,7 @@ The app has seven top-level sections, available from the side menu:
 | 4 | **Dictionary** | Browse/search words, add words, bulk operations |
 | 5 | **Import / Export** | Import and export vocabulary files |
 | 6 | **Settings** | Answer mode and timer |
+| 7 | **Statistics** | Progress over time: streak, accuracy trend, answers per day, levels, most missed words, and a button to practise weak words |
 
 **Responsive behaviour** (breakpoints by window width):
 
