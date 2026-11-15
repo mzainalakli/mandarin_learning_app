@@ -2,7 +2,7 @@
 
 All persistent data lives in a single SQLite file, `mandarin.db`, accessed through [`DatabaseHelper`](../lib/services/database_helper.dart) (a singleton, `DatabaseHelper.instance`). Small preferences use `shared_preferences`. See [Getting started](getting-started.md#where-the-database-is-stored) for the file location per platform.
 
-## Schema (version 8)
+## Schema (version 9)
 
 ```sql
 -- Versions 1-7 --
@@ -34,7 +34,7 @@ CREATE TABLE library_vocab_items (
 );
 ```
 
--- Added in version 8 --
+-- Added in version 8 (version 9 changed no schema) --
 
 CREATE TABLE review_events (            -- one row per real answer
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,7 +97,8 @@ The code never issues `PRAGMA foreign_keys = ON` (there is no `onConfigure` call
 | 5 | **Delete all vocabulary** and reseed |
 | 6 | **Delete all vocabulary** and reseed |
 | 7 | Create `user_libraries` and `library_vocab_items` |
-| 8 | **Additive only:** create `review_events` and `vocab_progress` (`IF NOT EXISTS`) and their indexes, then backfill `vocab_progress` for words with `reviewCount > 0` (box 2 if `correctCount / reviewCount >= 0.8`, otherwise box 0; due now). No data is deleted or altered. Old answer history cannot be reconstructed, so trends start with this version. |
+| 8 | **Additive only:** create `review_events` and `vocab_progress` (`IF NOT EXISTS`) and their indexes. Both tables start **empty**: the old `reviewCount` / `correctCount` totals are distorted by Review Later and are not used for scheduling or for "weak" words (they remain on `vocabularies` and in the Dashboard). Old answer history cannot be reconstructed, so trends start with this version. |
+| 9 | **Delete only:** `DELETE FROM vocab_progress WHERE first_attempts = 0`. A short-lived build of version 8 backfilled progress rows from the old totals; this removes them on devices already at version 8. Rows with `first_attempts >= 1` (real answers) are untouched, as are `review_events` and `vocabularies`. |
 
 A database created by an older build (version < 6) is therefore reset when opened by this build — user-added words and review history in `vocabularies` are lost at that point. Databases already at version 6 or 7 are upgraded without data loss; the 7 → 8 step is covered by `test/stats_db_test.dart`.
 
