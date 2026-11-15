@@ -55,7 +55,7 @@ class DatabaseHelper {
     return databaseFactory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 8,
+        version: 9,
         onCreate: (db, version) async {
           await _createTables(db);
           await _seedDatabase(db);
@@ -93,9 +93,16 @@ class DatabaseHelper {
             await _createLibraryTables(db);
           }
           if (oldVersion < 8) {
-            // Additive only: new tables plus a backfill from the old totals.
+            // Additive only. The tables start empty: the old review totals
+            // are distorted by Review Later and are not used for scheduling.
             await _createStatsTables(db);
-            await _backfillProgress(db);
+          }
+          if (oldVersion < 9) {
+            // Removes rows made by the short-lived v8 backfill (they never
+            // had a real first attempt). Rows with first_attempts >= 1 stay.
+            await db.execute(
+              'DELETE FROM vocab_progress WHERE first_attempts = 0',
+            );
           }
         },
       ),
@@ -170,30 +177,6 @@ class DatabaseHelper {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_vocab_category ON vocabularies(category)',
-    );
-  }
-
-  /// Accuracy at or above which a word with old totals starts in
-  /// [legacyBackfillGoodBox]; below it the word starts in box 0.
-  static const legacyBackfillMinAccuracy = 0.8;
-  static const legacyBackfillGoodBox = 2;
-
-  /// Gives words that already have review totals a starting schedule so they
-  /// are not treated as unseen. Insert-only; never touches existing data.
-  Future<void> _backfillProgress(Database db) async {
-    await db.rawInsert(
-      '''
-      INSERT OR IGNORE INTO vocab_progress (vocab_id, box, next_due)
-      SELECT id,
-             CASE WHEN correctCount * 1.0 / reviewCount >= ? THEN ? ELSE 0 END,
-             ?
-      FROM vocabularies WHERE reviewCount > 0
-    ''',
-      [
-        legacyBackfillMinAccuracy,
-        legacyBackfillGoodBox,
-        DateTime.now().toUtc().millisecondsSinceEpoch,
-      ],
     );
   }
 
@@ -690,12 +673,15 @@ class DatabaseHelper {
 
   // ===== DECK CANDIDATES (weak / due selection) =====
 
-  /// Weak = recently missed, or still in the lowest box after a miss, or a
-  /// word that only has old totals and started in box 0 (see migration).
-  static String get _weakPredicate =>
-      '(p.wrong_streak > 0 OR '
-      '(p.first_attempts > p.first_correct AND p.box <= ${Leitner.weakMaxBox}) OR '
-      '(p.first_attempts = 0 AND p.box = 0))';
+  /// Weak = at least one real first attempt AND (the last first attempt was
+  /// a miss, or accuracy is below [Leitner.weakAccuracyThreshold] after at
+  /// least [Leitner.weakMinAttempts] attempts). A newly learned word that was
+  /// answered correctly once is not weak. Uses the alias `p` for
+  /// `vocab_progress`.
+  static String get weakPredicate =>
+      '(p.first_attempts >= 1 AND (p.wrong_streak > 0 OR '
+      '(p.first_attempts >= ${Leitner.weakMinAttempts} AND '
+      'p.first_correct * 1.0 / p.first_attempts < ${Leitner.weakAccuracyThreshold})))';
 
   /// Lower ratio = weaker. Words without first attempts count as neutral.
   static const _ratioExpr =
@@ -735,11 +721,11 @@ class DatabaseHelper {
     final (where, args) = _deckFilter(filter, 'p.next_due <= ?');
     final rows = await db.rawQuery(
       '''
-      SELECT v.id, (CASE WHEN $_weakPredicate THEN 1 ELSE 0 END) AS weak
+      SELECT v.id, (CASE WHEN $weakPredicate THEN 1 ELSE 0 END) AS weak
       FROM vocab_progress p
       JOIN vocabularies v ON v.id = p.vocab_id
       $where
-      ORDER BY (CASE WHEN $_weakPredicate THEN 0 ELSE 1 END),
+      ORDER BY (CASE WHEN $weakPredicate THEN 0 ELSE 1 END),
                p.wrong_streak DESC, $_ratioExpr ASC, p.next_due ASC
       LIMIT ?
     ''',
@@ -778,7 +764,7 @@ class DatabaseHelper {
       '''
       SELECT p.vocab_id AS id FROM vocab_progress p
       JOIN vocabularies v ON v.id = p.vocab_id
-      WHERE $_weakPredicate
+      WHERE $weakPredicate
       ORDER BY p.wrong_streak DESC, $_ratioExpr ASC,
                (p.first_attempts - p.first_correct) DESC, p.next_due ASC
       LIMIT ?
@@ -793,7 +779,7 @@ class DatabaseHelper {
     return Sqflite.firstIntValue(
           await db.rawQuery(
             'SELECT COUNT(*) FROM vocab_progress p '
-            'JOIN vocabularies v ON v.id = p.vocab_id WHERE $_weakPredicate',
+            'JOIN vocabularies v ON v.id = p.vocab_id WHERE $weakPredicate',
           ),
         ) ??
         0;

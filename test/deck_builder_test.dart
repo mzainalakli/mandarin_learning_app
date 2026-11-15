@@ -157,6 +157,26 @@ void main() {
     expect(deck.length, greaterThanOrEqualTo(4));
   });
 
+  test('weak definition', () async {
+    await addWords(10);
+    await progress([1], box: 1, attempts: 1, correct: 1); // new, right once
+    await progress([2], wrongStreak: 1); // missed once
+    await progress([3], box: 1, attempts: 2, correct: 1); // 50% of 2
+    await progress([4], box: 3, attempts: 5, correct: 4); // 80%
+    await progress([5], box: 2, attempts: 3, correct: 2); // 67%
+    await progress([6], attempts: 0, correct: 0); // no real attempt
+    await progress([7], box: 1, attempts: 10, correct: 5, wrongStreak: 0);
+    expect(await db.getWeakWordCount(), 3);
+    final weak = await db.getWeakestIds(limit: 10);
+    expect(weak.toSet(), {2, 3, 7});
+  });
+
+  test('new or just-upgraded user has no weak words', () async {
+    await addWords(20);
+    expect(await db.getWeakWordCount(), 0);
+    expect(await db.getWeakestIds(limit: 10), isEmpty);
+  });
+
   test('same seed and clock give the same deck', () async {
     await addWords(100);
     await progress(List.generate(40, (i) => i + 1), wrongStreak: 1);
