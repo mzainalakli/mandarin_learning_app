@@ -13,8 +13,12 @@ class Leitner {
   /// A word in this box or higher counts as mastered.
   static const masteredBox = 4;
 
-  /// Boxes at or below this are treated as weak when due.
-  static const weakMaxBox = 1;
+  /// A word is weak when its first-attempt accuracy is below this ...
+  static const weakAccuracyThreshold = 0.6;
+
+  /// ... after at least this many first attempts. (A word whose latest first
+  /// attempt was a miss is weak regardless.)
+  static const weakMinAttempts = 2;
 
   static int dueAfter(int box, int nowMs) =>
       nowMs + Duration(days: intervalDays[box]).inMilliseconds;

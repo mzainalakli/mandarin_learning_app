@@ -204,7 +204,7 @@ class StatsRepository {
       '''
       SELECT v.*, p.first_attempts AS fa, p.first_correct AS fc
       FROM vocab_progress p JOIN vocabularies v ON v.id = p.vocab_id
-      WHERE p.first_attempts > p.first_correct
+      WHERE ${DatabaseHelper.weakPredicate}
       ORDER BY (p.first_attempts - p.first_correct) DESC,
                p.first_correct * 1.0 / p.first_attempts ASC, v.id
       LIMIT ?
