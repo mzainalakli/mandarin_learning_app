@@ -52,6 +52,39 @@ class Responsive {
   /// the layout does not jump when a button appears or disappears.
   static const double actionBlockMinHeight = 56;
 
+  // ── Flashcard (essay) quiz mode ───────────────────────────────────────
+
+  /// Height of the flashcard action buttons ("Show answer", "Got It",
+  /// "Review Later") on tall screens, and on short ones (landscape phones).
+  static const double flashcardActionHeight = 64;
+  static const double flashcardCompactActionHeight = 56;
+
+  /// Clear gap between "Review Later" and "Got It" so they are not mis-tapped.
+  static const double flashcardActionGap = 16;
+
+  /// Widest the flashcard and its buttons grow on tablets and desktops.
+  static const double flashcardMaxWidth = 720;
+
+  /// Card height on tablets and desktops (the page scrolls there), and the
+  /// smallest portrait phone content height before the page scrolls. Both
+  /// grow with the system text scale.
+  static const double flashcardRegularHeight = 340;
+  static const double flashcardPortraitMinContentHeight = 360;
+
+  static double _scaledByText(BuildContext context, double value) =>
+      value * MediaQuery.textScalerOf(context).scale(16) / 16;
+
+  static double flashcardActionExtent(BuildContext context) =>
+      isCompactHeight(context)
+      ? flashcardCompactActionHeight
+      : flashcardActionHeight;
+
+  static double flashcardCardHeight(BuildContext context) =>
+      _scaledByText(context, flashcardRegularHeight);
+
+  static double flashcardMinContentHeight(BuildContext context) =>
+      _scaledByText(context, flashcardPortraitMinContentHeight);
+
   /// Smallest content height of the portrait quiz layout before it scrolls.
   static const double quizPortraitMinContentHeight = 560;
 

@@ -11,6 +11,17 @@ import '../../providers/settings_provider.dart';
 import '../../services/tts_service.dart';
 import '../../widgets/custom_app_bar.dart';
 
+/// Pause between a flashcard verdict ("Got It" / "Review Later") and the next
+/// card; long enough to see the card's feedback border.
+const Duration flashcardAdvanceDelay = Duration(milliseconds: 350);
+
+/// Pause after a multiple-choice answer, so the correct option can be read.
+const Duration multipleChoiceAdvanceDelay = Duration(milliseconds: 700);
+
+/// Length of the flashcard flip and of the next card's entrance.
+const Duration flashcardFlipDuration = Duration(milliseconds: 350);
+const Duration flashcardEnterDuration = Duration(milliseconds: 200);
+
 class QuizSessionScreen extends StatefulWidget {
   const QuizSessionScreen({
     super.key,
@@ -27,6 +38,12 @@ class QuizSessionScreen extends StatefulWidget {
 
 class _QuizSessionScreenState extends State<QuizSessionScreen> {
   Timer? _timer;
+  Timer? _advanceTimer;
+  bool _advancing = false;
+
+  /// Identifies the question on screen; the flashcard is rebuilt (front side
+  /// up) whenever it changes.
+  int _questionSerial = 0;
   bool _loaded = false;
   int _remainingSeconds = 0;
   bool? _lastAnswerCorrect;
@@ -41,6 +58,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _advanceTimer?.cancel();
     super.dispose();
   }
 
@@ -80,9 +98,13 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
     });
   }
 
-  void _autoAdvance() {
+  void _autoAdvance([Duration delay = multipleChoiceAdvanceDelay]) {
     _timer?.cancel();
-    Future.delayed(const Duration(milliseconds: 700), () {
+    // One pending advance at a time, so nextQuestion() runs exactly once.
+    if (_advancing) return;
+    _advancing = true;
+    _advanceTimer = Timer(delay, () {
+      _advancing = false;
       if (!mounted) return;
       _next();
     });
@@ -99,7 +121,10 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
   }
 
   void _next() {
-    context.read<QuizProvider>().nextQuestion();
+    final quiz = context.read<QuizProvider>();
+    if (!quiz.answered) return;
+    quiz.nextQuestion();
+    _questionSerial++;
     _lastAnswerCorrect = null;
     _feedbackTick++;
     _startTimer();
@@ -108,6 +133,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
   void _pass() {
     _timer?.cancel();
     context.read<QuizProvider>().passQuestion();
+    _questionSerial++;
     _lastAnswerCorrect = null;
     _feedbackTick++;
     _startTimer();
@@ -124,7 +150,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
     }
     if (!mounted) return;
     _markFeedback(correct);
-    _autoAdvance();
+    _autoAdvance(flashcardAdvanceDelay);
   }
 
   void _finish() {
@@ -271,6 +297,7 @@ class _QuizSessionScreenState extends State<QuizSessionScreen> {
                     module: widget.module,
                     answerMode: widget.answerMode,
                     feedbackTick: _feedbackTick,
+                    questionSerial: _questionSerial,
                     lastAnswerCorrect: _lastAnswerCorrect,
                     onSpeak: () =>
                         TtsService.instance.speak(quiz.current!.displayHanzi),
@@ -397,6 +424,7 @@ class _QuestionView extends StatelessWidget {
     required this.module,
     required this.answerMode,
     required this.feedbackTick,
+    required this.questionSerial,
     required this.lastAnswerCorrect,
     required this.onSpeak,
     required this.onSubmit,
@@ -412,6 +440,7 @@ class _QuestionView extends StatelessWidget {
   final QuizModule module;
   final QuizAnswerMode answerMode;
   final int feedbackTick;
+  final int questionSerial;
   final bool? lastAnswerCorrect;
   final VoidCallback onSpeak;
   final ValueChanged<int> onSubmit;
@@ -422,8 +451,115 @@ class _QuestionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (answerMode == QuizAnswerMode.essay) return _buildFlashcard(context);
     if (Responsive.isCompact(context)) return _buildCompact(context);
     return _buildRegular(context);
+  }
+
+  /// Essay / flashcard mode, every screen size: ONE card that flips in place
+  /// (question -> answer) and big action buttons below it (or beside it in
+  /// landscape).
+  Widget _buildFlashcard(BuildContext context) {
+    final compact = Responsive.isCompact(context);
+    final gap = Responsive.gap(context);
+    final card = _FlashcardFlip(
+      key: const ValueKey('flashcard-card'),
+      serial: questionSerial,
+      quiz: quiz,
+      module: module,
+      questionMode: _questionMode,
+      feedback: lastAnswerCorrect,
+      onSpeak: onSpeak,
+      onReveal: onReveal,
+    );
+    final actions = _FlashcardActions(
+      quiz: quiz,
+      onReveal: onReveal,
+      onEvaluate: onEvaluate,
+    );
+
+    if (compact) {
+      final status = _CompactStatusBar(
+        quiz: quiz,
+        settings: settings,
+        remainingSeconds: remainingSeconds,
+      );
+      if (Responsive.useSplitLayout(context)) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  status,
+                  SizedBox(height: gap),
+                  Expanded(child: card),
+                ],
+              ),
+            ),
+            const SizedBox(width: Responsive.regularGap),
+            Expanded(
+              flex: 2,
+              child: Align(alignment: Alignment.bottomCenter, child: actions),
+            ),
+          ],
+        );
+      }
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final height = math.max(
+            constraints.maxHeight,
+            Responsive.flashcardMinContentHeight(context),
+          );
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints.tightFor(height: height),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  status,
+                  SizedBox(height: gap),
+                  Expanded(child: card),
+                  SizedBox(height: gap),
+                  actions,
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    // Tablet / desktop: the page scrolls; the card has a fixed height.
+    return SingleChildScrollView(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: Responsive.flashcardMaxWidth,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ProgressStrip(
+                quiz: quiz,
+                settings: settings,
+                remainingSeconds: remainingSeconds,
+                isMobile: false,
+              ),
+              SizedBox(height: gap),
+              SizedBox(
+                height: Responsive.flashcardCardHeight(context),
+                child: card,
+              ),
+              SizedBox(height: gap),
+              actions,
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   String get _questionMode => switch (module) {
@@ -460,13 +596,7 @@ class _QuestionView extends StatelessWidget {
       compact: true,
     );
     final content = _compactContent();
-    final actions = _CompactActions(
-      quiz: quiz,
-      answerMode: answerMode,
-      onReveal: onReveal,
-      onEvaluate: onEvaluate,
-      onNext: onNext,
-    );
+    final actions = _CompactActions(quiz: quiz, onNext: onNext);
 
     if (Responsive.useSplitLayout(context)) {
       return Row(
@@ -534,23 +664,15 @@ class _QuestionView extends StatelessWidget {
     );
   }
 
-  Widget _compactContent() {
-    if (answerMode == QuizAnswerMode.multipleChoice) {
-      return _MultipleChoiceOptions(
-        options: quiz.options,
-        answered: quiz.answered,
-        correctIndex: quiz.correctIndex(),
-        selectedIndex: quiz.selectedIndex,
-        optionText: quiz.optionText,
-        onTap: onSubmit,
-        compact: true,
-      );
-    }
-    if (quiz.revealed) {
-      return _AnswerCard(quiz: quiz, feedbackTick: feedbackTick, compact: true);
-    }
-    return const SizedBox.shrink();
-  }
+  Widget _compactContent() => _MultipleChoiceOptions(
+    options: quiz.options,
+    answered: quiz.answered,
+    correctIndex: quiz.correctIndex(),
+    selectedIndex: quiz.selectedIndex,
+    optionText: quiz.optionText,
+    onTap: onSubmit,
+    compact: true,
+  );
 
   Widget _buildRegular(BuildContext context) {
     final current = quiz.current!;
@@ -578,56 +700,18 @@ class _QuestionView extends StatelessWidget {
             onSpeak: onSpeak,
             questionMode: questionMode,
             showDetails: showDetails,
-            showAnswerAction:
-                answerMode == QuizAnswerMode.essay && !quiz.revealed
-                ? FilledButton.icon(
-                    onPressed: onReveal,
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('Show answer'),
-                  )
-                : null,
           ),
           const SizedBox(height: 24),
-          if (answerMode == QuizAnswerMode.multipleChoice)
-            _MultipleChoiceOptions(
-              options: quiz.options,
-              answered: quiz.answered,
-              correctIndex: quiz.correctIndex(),
-              selectedIndex: quiz.selectedIndex,
-              optionText: quiz.optionText,
-              onTap: onSubmit,
-            )
-          else ...[
-            if (quiz.revealed) ...[
-              _AnswerCard(quiz: quiz, feedbackTick: feedbackTick),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: quiz.answered || !quiz.canReviewLater
-                          ? null
-                          : () => onEvaluate(false),
-                      child: Text(
-                        quiz.canReviewLater
-                            ? 'Review Later'
-                            : 'Review limit reached',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: quiz.answered ? null : () => onEvaluate(true),
-                      child: const Text('Got It'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
+          _MultipleChoiceOptions(
+            options: quiz.options,
+            answered: quiz.answered,
+            correctIndex: quiz.correctIndex(),
+            selectedIndex: quiz.selectedIndex,
+            optionText: quiz.optionText,
+            onTap: onSubmit,
+          ),
           const SizedBox(height: 16),
-          if (quiz.answered && answerMode == QuizAnswerMode.multipleChoice)
+          if (quiz.answered)
             Align(
               alignment: Alignment.center,
               child: FilledButton.icon(
@@ -689,74 +773,134 @@ class _CompactStatusBar extends StatelessWidget {
   }
 }
 
-/// Bottom action block of the phone layout. Always at least
-/// [Responsive.actionBlockMinHeight] tall so the layout does not jump when a
+/// Bottom action block of the multiple-choice phone layout. Always at least
+/// [Responsive.actionBlockMinHeight] tall so the layout does not jump when the
 /// button appears.
 class _CompactActions extends StatelessWidget {
-  const _CompactActions({
-    required this.quiz,
-    required this.answerMode,
-    required this.onReveal,
-    required this.onEvaluate,
-    required this.onNext,
-  });
+  const _CompactActions({required this.quiz, required this.onNext});
   final QuizProvider quiz;
-  final QuizAnswerMode answerMode;
-  final VoidCallback onReveal;
-  final ValueChanged<bool> onEvaluate;
   final VoidCallback onNext;
 
   @override
   Widget build(BuildContext context) {
     const size = Size(0, Responsive.minTouchTarget);
-    final Widget? child;
-    if (answerMode == QuizAnswerMode.multipleChoice) {
-      child = quiz.answered
-          ? FilledButton.icon(
-              style: FilledButton.styleFrom(minimumSize: size),
-              onPressed: onNext,
-              icon: const Icon(Icons.arrow_forward),
-              label: const Text('Next word'),
-            )
-          : null;
-    } else if (!quiz.revealed) {
-      child = FilledButton.icon(
-        style: FilledButton.styleFrom(minimumSize: size),
-        onPressed: onReveal,
-        icon: const Icon(Icons.visibility_outlined),
-        label: const Text('Show answer'),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minHeight: Responsive.actionBlockMinHeight,
+      ),
+      child: Align(
+        alignment: Alignment.center,
+        child: quiz.answered
+            ? FilledButton.icon(
+                style: FilledButton.styleFrom(minimumSize: size),
+                onPressed: onNext,
+                icon: const Icon(Icons.arrow_forward),
+                label: const Text('Next word'),
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+/// Action buttons of flashcard mode: a full-width "Show answer", then two
+/// large side-by-side verdict buttons. Same height in both states.
+class _FlashcardActions extends StatelessWidget {
+  const _FlashcardActions({
+    required this.quiz,
+    required this.onReveal,
+    required this.onEvaluate,
+  });
+  final QuizProvider quiz;
+  final VoidCallback onReveal;
+  final ValueChanged<bool> onEvaluate;
+
+  /// The scheme's own "on" colour when it reads well on [background]; some
+  /// colours (the jade tertiary in the dark theme) need a lighter one.
+  static Color _readableOn(ColorScheme colors, Color background, Color on) {
+    final candidates = [on, colors.onSurface, colors.surface];
+    candidates.sort(
+      (a, b) => _contrast(b, background).compareTo(_contrast(a, background)),
+    );
+    return _contrast(on, background) >= 4.5 ? on : candidates.first;
+  }
+
+  static double _contrast(Color a, Color b) {
+    final la = a.computeLuminance() + 0.05;
+    final lb = b.computeLuminance() + 0.05;
+    return la > lb ? la / lb : lb / la;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final height = Responsive.flashcardActionExtent(context);
+    const padding = EdgeInsets.symmetric(horizontal: Responsive.compactGap);
+    final labelStyle = Theme.of(context).textTheme.titleMedium
+        ?.copyWith(fontWeight: FontWeight.w700);
+    final Widget child;
+    if (!quiz.revealed) {
+      child = SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(
+            minimumSize: Size(double.infinity, height),
+            textStyle: labelStyle,
+          ),
+          onPressed: onReveal,
+          icon: const Icon(Icons.visibility_outlined),
+          label: const Text('Show answer'),
+        ),
       );
     } else {
+      final canReview = !quiz.answered && quiz.canReviewLater;
+      final gotItBackground = colors.tertiary;
       child = Row(
         children: [
           Expanded(
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(minimumSize: size),
-              onPressed: quiz.answered || !quiz.canReviewLater
-                  ? null
-                  : () => onEvaluate(false),
-              child: Text(
+            child: FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(
+                minimumSize: Size(0, height),
+                padding: padding,
+                textStyle: labelStyle,
+                backgroundColor: colors.errorContainer,
+                foregroundColor: colors.onErrorContainer,
+                side: canReview ? BorderSide(color: colors.error) : null,
+              ),
+              onPressed: canReview ? () => onEvaluate(false) : null,
+              icon: const Icon(Icons.replay),
+              label: Text(
                 quiz.canReviewLater ? 'Review Later' : 'Review limit reached',
+                maxLines: 2,
                 textAlign: TextAlign.center,
               ),
             ),
           ),
-          const SizedBox(width: Responsive.compactCardPadding),
+          const SizedBox(width: Responsive.flashcardActionGap),
           Expanded(
-            child: FilledButton(
-              style: FilledButton.styleFrom(minimumSize: size),
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: Size(0, height),
+                padding: padding,
+                textStyle: labelStyle,
+                backgroundColor: gotItBackground,
+                foregroundColor: _readableOn(
+                  colors,
+                  gotItBackground,
+                  colors.onTertiary,
+                ),
+              ),
               onPressed: quiz.answered ? null : () => onEvaluate(true),
-              child: const Text('Got It'),
+              icon: const Icon(Icons.check),
+              label: const Text('Got It', textAlign: TextAlign.center),
             ),
           ),
         ],
       );
     }
     return ConstrainedBox(
-      constraints: const BoxConstraints(
-        minHeight: Responsive.actionBlockMinHeight,
-      ),
-      child: Align(alignment: Alignment.center, child: child),
+      constraints: BoxConstraints(minHeight: height),
+      child: child,
     );
   }
 }
@@ -869,51 +1013,33 @@ class _SessionPill extends StatelessWidget {
   }
 }
 
-class _PromptCard extends StatelessWidget {
-  const _PromptCard({
-    required this.current,
-    required this.module,
-    required this.feedbackTick,
-    required this.lastAnswerCorrect,
-    required this.onSpeak,
-    required this.questionMode,
-    required this.showDetails,
-    this.showAnswerAction,
-    this.compact = false,
-  });
+bool _isHanziLed(QuizModule module) =>
+    module != QuizModule.pinyinToHanziAndMeaning &&
+    module != QuizModule.hanziByZhuyin;
 
-  final Vocabulary current;
-  final QuizModule module;
-  final int feedbackTick;
-  final bool? lastAnswerCorrect;
-  final VoidCallback onSpeak;
-  final String questionMode;
-  final bool showDetails;
-  final Widget? showAnswerAction;
-
-  /// Phone layout: fills the height it is given and sizes the prompt to it.
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final maxWidth = MediaQuery.sizeOf(context).width;
-    final isHanziLed =
-        module != QuizModule.pinyinToHanziAndMeaning &&
-        module != QuizModule.hanziByZhuyin;
-    final promptText = switch (module) {
+String _promptTextFor(QuizModule module, Vocabulary current) =>
+    switch (module) {
       QuizModule.pinyinToHanziAndMeaning => current.displayPronunciation,
       QuizModule.hanziByZhuyin =>
         current.zhuyin ?? current.displayPronunciation,
       _ => current.displayHanzi,
     };
-    final regularTextSize = Responsive.promptFontSize(
-      width: maxWidth,
-      availableHeight: double.infinity,
-      hanziLed: isHanziLed,
-    );
 
-    final header = Row(
+/// Question label and the pronounce button at the top of a prompt.
+class _PromptHeader extends StatelessWidget {
+  const _PromptHeader({
+    required this.questionMode,
+    required this.onSpeak,
+    required this.compact,
+  });
+  final String questionMode;
+  final VoidCallback onSpeak;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
       children: [
         Expanded(
           child: Text(
@@ -930,6 +1056,49 @@ class _PromptCard extends StatelessWidget {
           tooltip: 'Pronounce',
         ),
       ],
+    );
+  }
+}
+
+class _PromptCard extends StatelessWidget {
+  const _PromptCard({
+    required this.current,
+    required this.module,
+    required this.feedbackTick,
+    required this.lastAnswerCorrect,
+    required this.onSpeak,
+    required this.questionMode,
+    required this.showDetails,
+    this.compact = false,
+  });
+
+  final Vocabulary current;
+  final QuizModule module;
+  final int feedbackTick;
+  final bool? lastAnswerCorrect;
+  final VoidCallback onSpeak;
+  final String questionMode;
+  final bool showDetails;
+
+  /// Phone layout: fills the height it is given and sizes the prompt to it.
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final maxWidth = MediaQuery.sizeOf(context).width;
+    final isHanziLed = _isHanziLed(module);
+    final promptText = _promptTextFor(module, current);
+    final regularTextSize = Responsive.promptFontSize(
+      width: maxWidth,
+      availableHeight: double.infinity,
+      hanziLed: isHanziLed,
+    );
+
+    final header = _PromptHeader(
+      questionMode: questionMode,
+      onSpeak: onSpeak,
+      compact: compact,
     );
 
     Widget promptBlock(double textSize) => Column(
@@ -973,9 +1142,6 @@ class _PromptCard extends StatelessWidget {
               _InfoBadge(label: 'Meaning', value: current.meaning),
             ],
           ),
-        ] else if (showAnswerAction != null) ...[
-          const SizedBox(height: 18),
-          Align(alignment: Alignment.center, child: showAnswerAction),
         ],
       ],
     );
@@ -1092,45 +1258,345 @@ class _InfoBadge extends StatelessWidget {
   }
 }
 
-class _AnswerCard extends StatelessWidget {
-  const _AnswerCard({
+/// The single flashcard of essay mode. The question is the front; tapping it
+/// (or the "Show answer" button, or the timer running out) flips it in place
+/// to the answer. Only one face is built at a time, so there is always exactly
+/// one card on screen and both faces share the card's size.
+class _FlashcardFlip extends StatelessWidget {
+  const _FlashcardFlip({
+    super.key,
+    required this.serial,
     required this.quiz,
-    required this.feedbackTick,
-    this.compact = false,
+    required this.module,
+    required this.questionMode,
+    required this.feedback,
+    required this.onSpeak,
+    required this.onReveal,
   });
+
+  /// Changes for every new question; the card then starts on its front.
+  final int serial;
   final QuizProvider quiz;
-  final int feedbackTick;
-  final bool compact;
+  final QuizModule module;
+  final String questionMode;
+
+  /// Verdict of the last evaluation: true = Got It, false = Review Later.
+  final bool? feedback;
+  final VoidCallback onSpeak;
+  final VoidCallback onReveal;
 
   @override
-  Widget build(BuildContext context) => AnimatedSwitcher(
-    duration: const Duration(milliseconds: 260),
-    child: ResponsiveCard(
-      key: ValueKey('answer-$feedbackTick'),
-      margin: compact ? EdgeInsets.zero : null,
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: EdgeInsets.all(compact ? Responsive.compactGap : 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Answer revealed',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            SizedBox(height: compact ? Responsive.compactGap : 12),
-            Text(
-              quiz.answerText,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineMedium
-                  ?.copyWith(fontSize: compact ? 22 : 28, height: 1.35),
-            ),
-          ],
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    // A keyed builder: each question gets a fresh, front-up card that fades
+    // and slides in briefly (instantly when animations are reduced).
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('flashcard-$serial'),
+      tween: Tween(begin: 0, end: 1),
+      duration: reduce ? Duration.zero : flashcardEnterDuration,
+      curve: Curves.easeOut,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, (1 - value) * Responsive.regularGap),
+          child: child,
         ),
+      ),
+      child: _FlashcardBody(
+        quiz: quiz,
+        module: module,
+        questionMode: questionMode,
+        feedback: feedback,
+        onSpeak: onSpeak,
+        onReveal: onReveal,
+      ),
+    );
+  }
+}
+
+class _FlashcardBody extends StatefulWidget {
+  const _FlashcardBody({
+    required this.quiz,
+    required this.module,
+    required this.questionMode,
+    required this.feedback,
+    required this.onSpeak,
+    required this.onReveal,
+  });
+  final QuizProvider quiz;
+  final QuizModule module;
+  final String questionMode;
+  final bool? feedback;
+  final VoidCallback onSpeak;
+  final VoidCallback onReveal;
+
+  @override
+  State<_FlashcardBody> createState() => _FlashcardBodyState();
+}
+
+class _FlashcardBodyState extends State<_FlashcardBody>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flip = AnimationController(
+    vsync: this,
+    duration: flashcardFlipDuration,
+    value: widget.quiz.revealed ? 1 : 0,
+  );
+
+  @override
+  void didUpdateWidget(_FlashcardBody old) {
+    super.didUpdateWidget(old);
+    final target = widget.quiz.revealed ? 1.0 : 0.0;
+    if (_flip.value == target || _flip.status == AnimationStatus.forward) {
+      return;
+    }
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _flip.value = target;
+    } else {
+      _flip.animateTo(target, curve: Curves.easeInOut);
+    }
+  }
+
+  @override
+  void dispose() {
+    _flip.dispose();
+    super.dispose();
+  }
+
+  Color _borderColor(ColorScheme colors) => switch (widget.feedback) {
+    null => colors.outlineVariant,
+    true => colors.tertiary,
+    false => colors.error,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final revealed = widget.quiz.revealed;
+    return Semantics(
+      container: true,
+      label: revealed ? 'Answer side' : 'Question side',
+      hint: revealed ? null : 'Double tap to show answer',
+      child: AnimatedBuilder(
+        animation: _flip,
+        builder: (context, _) {
+          final angle = _flip.value * math.pi;
+          final showBack = angle > math.pi / 2;
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(angle),
+            child: Card(
+              margin: EdgeInsets.zero,
+              elevation: 2,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: _borderColor(colors),
+                  width: widget.feedback == null ? 1.2 : 3,
+                ),
+              ),
+              child: showBack
+                  // The back is turned by pi so its text is not mirrored.
+                  ? Transform(
+                      alignment: Alignment.center,
+                      transform: Matrix4.rotationY(math.pi),
+                      child: _FlashcardBack(
+                        key: const ValueKey('flashcard-back'),
+                        quiz: widget.quiz,
+                        module: widget.module,
+                      ),
+                    )
+                  : InkWell(
+                      onTap: revealed ? null : widget.onReveal,
+                      child: _FlashcardFront(
+                        key: const ValueKey('flashcard-front'),
+                        quiz: widget.quiz,
+                        module: widget.module,
+                        questionMode: widget.questionMode,
+                        onSpeak: widget.onSpeak,
+                      ),
+                    ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Centres [child] in the card, scrolling inside the card when it is taller.
+class _CardScroll extends StatelessWidget {
+  const _CardScroll({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+        child: Center(child: child),
       ),
     ),
   );
+}
+
+class _FlashcardFront extends StatelessWidget {
+  const _FlashcardFront({
+    super.key,
+    required this.quiz,
+    required this.module,
+    required this.questionMode,
+    required this.onSpeak,
+  });
+  final QuizProvider quiz;
+  final QuizModule module;
+  final String questionMode;
+  final VoidCallback onSpeak;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final current = quiz.current!;
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = Responsive.isCompact(context);
+    return Padding(
+      padding: EdgeInsets.all(
+        compact ? Responsive.compactGap : Responsive.innerCardPadding(context),
+      ),
+      child: Column(
+        children: [
+          _PromptHeader(
+            questionMode: questionMode,
+            onSpeak: onSpeak,
+            compact: compact,
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _promptTextFor(module, current),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.displayMedium
+                              ?.copyWith(
+                                height: 1.08,
+                                fontSize: Responsive.promptFontSize(
+                                  width: width,
+                                  availableHeight: constraints.maxHeight,
+                                  hanziLed: _isHanziLed(module),
+                                ),
+                              ),
+                        ),
+                        if (module == QuizModule.pinyinToHanziAndMeaning &&
+                            current.meaning.trim().isNotEmpty) ...[
+                          const SizedBox(height: Responsive.compactGap),
+                          Text(
+                            current.meaning,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(color: colors.onSurfaceVariant),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FlashcardBack extends StatelessWidget {
+  const _FlashcardBack({super.key, required this.quiz, required this.module});
+  final QuizProvider quiz;
+  final QuizModule module;
+
+  /// Hanzi, pronunciation and meaning that [QuizProvider.answerText] does not
+  /// already show (compared line by line), so nothing appears twice.
+  List<(String, String)> _details() {
+    final current = quiz.current!;
+    final shown = quiz.answerText.split('\n').map((l) => l.trim()).toSet();
+    final entries = <(String, String)>[
+      ('Hanzi', current.displayHanzi),
+      ('Pronunciation', current.displayPronunciation),
+      ('Meaning', current.meaning),
+    ];
+    return [
+      for (final e in entries)
+        if (e.$2.trim().isNotEmpty &&
+            e.$2.trim() != '-' &&
+            !shown.contains(e.$2.trim()))
+          e,
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final compact = Responsive.isCompact(context);
+    final details = _details();
+    return ColoredBox(
+      color: colors.secondaryContainer,
+      child: Padding(
+        padding: EdgeInsets.all(
+          compact
+              ? Responsive.compactGap
+              : Responsive.innerCardPadding(context),
+        ),
+        child: _CardScroll(
+          child: DefaultTextStyle.merge(
+            style: TextStyle(color: colors.onSecondaryContainer),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Answer revealed',
+                  style: Theme.of(context).textTheme.labelLarge
+                      ?.copyWith(color: colors.onSecondaryContainer),
+                ),
+                const SizedBox(height: Responsive.compactGap),
+                Text(
+                  quiz.answerText,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontSize: compact ? 26 : 32,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                    color: colors.onSecondaryContainer,
+                  ),
+                ),
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: Responsive.regularGap),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: Responsive.compactGap,
+                    runSpacing: Responsive.compactGap,
+                    children: [
+                      for (final d in details)
+                        _InfoBadge(label: d.$1, value: d.$2),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _MultipleChoiceOptions extends StatelessWidget {
