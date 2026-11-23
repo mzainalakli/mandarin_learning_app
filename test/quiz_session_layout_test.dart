@@ -219,7 +219,7 @@ void main() {
   });
 
   group('tablet is unchanged', () {
-    testWidgets('1024x768 keeps the progress card and in-card Show answer', (
+    testWidgets('1024x768 keeps the progress card and the Show answer button', (
       tester,
     ) async {
       _setView(tester, const Size(1024, 768));
