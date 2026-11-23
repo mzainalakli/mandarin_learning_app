@@ -68,7 +68,7 @@ start → _advance() ─┐
                     └─ otherwise → current = remaining.removeLast(), build options (multiple choice)
 ```
 
-A question is *answered* when the learner selects an option (`checkAnswer`), self-grades (`selfEvaluate` / `reviewLater`), or the timer expires in multiple-choice mode (`markTimedOut`). `nextQuestion()` then moves on. In the UI, all of these auto-advance after 700 ms.
+A question is *answered* when the learner selects an option (`checkAnswer`), self-grades (`selfEvaluate` / `reviewLater`), or the timer expires in multiple-choice mode (`markTimedOut`). `nextQuestion()` then moves on. In the UI, all of these auto-advance: after 700 ms in multiple choice, after 350 ms for Got It / Review Later (`flashcardAdvanceDelay`).
 
 ### Pass, Review Later and Got It
 

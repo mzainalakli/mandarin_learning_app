@@ -77,12 +77,12 @@ The screen shows a progress strip (answered / total, remaining words, passed wor
 
 **Multiple Choice** — four lettered options (A–D). Tap one: the correct option turns green, a wrong pick turns red and shakes. After about 0.7 seconds the quiz moves on to the next word automatically (the **Next word** button is also available). If the timer is on and runs out, the word counts as incorrect and the quiz advances.
 
-**Essay / Flashcard** — the answer is hidden. Think of it, tap **Show answer**, then choose:
+**Essay / Flashcard** — you see one card with the question. Think of the answer, then tap **Show answer** (the wide button at the bottom) or tap the card itself: the card flips over in place and shows the answer in large type, with the Hanzi, pronunciation and meaning below it. With your phone's "remove animations" setting on, the card changes instantly instead of flipping. Then choose with the two big buttons at the bottom:
 
-- **Got It** — the word is done and counts as correct.
-- **Review Later** — the miss is saved, but the word stays in the session: it is put back at a **random position among the words you have not been asked yet** (never as the very next card unless it is the only one left) and you will be asked it again. You can choose Review Later as often as you like.
+- **Got It** (green) — the word is done and counts as correct.
+- **Review Later** (red) — the miss is saved, but the word stays in the session: it is put back at a **random position among the words you have not been asked yet** (never as the very next card unless it is the only one left) and you will be asked it again. A word can be sent to Review Later up to 3 times; after that the button reads **Review limit reached** and is disabled, so choose Got It.
 
-If the timer runs out in flashcard mode the answer is revealed so you can still grade yourself.
+The next card appears by itself (a third of a second after your tap), question side up. There is no undo, so tap carefully. If the timer runs out in flashcard mode the card flips so you can still grade yourself.
 
 When a fixed-size deck is used up, or you tap Finish, a **Session complete** card shows `Correct X of Y on the first try` and a **Back to modes** button. "First try" means a word counts as correct only if your first answer to it was right — a word you had to review does not.
 
